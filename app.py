@@ -38,85 +38,42 @@ TRIAL_DAYS = 7
 
 
 def db_execute(sql, params=None):
-    with engine.begin() as c:
-        return c.execute(text(sql), params or {})
+    with engine.begin() as conn:
+        result = conn.execute(text(sql), params or {})
+        return result
 
 
 def db_fetchone(sql, params=None):
-    with engine.connect() as c:
-        row = c.execute(text(sql), params or {}).mappings().first()
+    with engine.begin() as conn:
+        row = conn.execute(text(sql), params or {}).mappings().first()
         return dict(row) if row else None
 
 
 def db_fetchall(sql, params=None):
-    with engine.connect() as c:
-        return [dict(r) for r in c.execute(text(sql), params or {}).mappings().all()]
+    with engine.begin() as conn:
+        rows = conn.execute(text(sql), params or {}).mappings().all()
+        return [dict(r) for r in rows]
 
 
 def init_db():
-    if DB_BACKEND == 'postgresql':
-        db_execute("""CREATE TABLE IF NOT EXISTS users(
-          id BIGSERIAL PRIMARY KEY,
-          email TEXT UNIQUE NOT NULL,
-          password_hash TEXT NOT NULL,
-          trial_started_at TEXT NOT NULL,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )""")
-        db_execute("""CREATE TABLE IF NOT EXISTS purchases(
-          id BIGSERIAL PRIMARY KEY,
-          user_id BIGINT NOT NULL REFERENCES users(id),
-          stripe_session_id TEXT UNIQUE NOT NULL,
-          payment_intent TEXT,
-          amount INTEGER,
-          currency TEXT,
-          status TEXT NOT NULL,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )""")
-        db_execute("""CREATE TABLE IF NOT EXISTS cv_data(
-          user_id BIGINT PRIMARY KEY REFERENCES users(id),
-          data TEXT NOT NULL DEFAULT '{}',
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )""")
-    else:
-        db_execute("""CREATE TABLE IF NOT EXISTS users(
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          email TEXT UNIQUE NOT NULL,
-          password_hash TEXT NOT NULL,
-          trial_started_at TEXT NOT NULL,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        )""")
-        db_execute("""CREATE TABLE IF NOT EXISTS purchases(
-          id INTEGER PRIMARY KEY AUTOINCREMENT,
-          user_id INTEGER NOT NULL,
-          stripe_session_id TEXT UNIQUE NOT NULL,
-          payment_intent TEXT,
-          amount INTEGER,
-          currency TEXT,
-          status TEXT NOT NULL,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY(user_id) REFERENCES users(id)
-        )""")
-        db_execute("""CREATE TABLE IF NOT EXISTS cv_data(
-          user_id INTEGER PRIMARY KEY,
-          data TEXT NOT NULL DEFAULT '{}',
-          updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-          FOREIGN KEY(user_id) REFERENCES users(id)
-        )""")
-
-
-def now():
-    return datetime.now(timezone.utc)
-
-
-def parse_dt(v):
-    return datetime.fromisoformat(str(v).replace('Z', '+00:00'))
-
-
-def trial_info(user):
-    start = parse_dt(user['trial_started_at'])
-    end = start + timedelta(days=TRIAL_DAYS)
-    seconds = max(0, (end - now()).total_seconds())
-    return seconds > 0, end, max(0, int(seconds // 86400) + (1 if seconds % 86400 else 0))
+    db_execute('''CREATE TABLE IF NOT EXISTS users (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        email TEXT UNIQUE NOT NULL,
+        password_hash TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    )''')
+    db_execute('''CREATE TABLE IF NOT EXISTS purchases (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        user_id INTEGER NOT NULL,
+        stripe_session_id TEXT,
+        status TEXT NOT NULL,
+        created_at TEXT NOT NULL
+    )''')
+    db_execute('''CREATE TABLE IF NOT EXISTS cv_data (
+        user_id INTEGER PRIMARY KEY,
+        data TEXT NOT NULL,
+        updated_at TEXT NOT NULL
+    )''')
 
 
 def current_user():
@@ -126,13 +83,28 @@ def current_user():
     return db_fetchone('SELECT * FROM users WHERE id=:id', {'id': uid})
 
 
-def is_pro_user(user):
+def trial_info(user):
     if not user:
-        return False
-    active, _, _ = trial_info(user)
+        return False, 0
+    try:
+        created = datetime.fromisoformat(user['created_at'])
+        if created.tzinfo is None:
+            created = created.replace(tzinfo=timezone.utc)
+        end = created + timedelta(days=TRIAL_DAYS)
+        now = datetime.now(timezone.utc)
+        remaining = max(0, (end - now).total_seconds())
+        return remaining > 0, int((remaining + 86399) // 86400)
+    except Exception:
+        return False, 0
+
+
+def is_pro_user(user):
+    active, _ = trial_info(user)
     if active:
         return True
-    row = db_fetchone("SELECT 1 FROM purchases WHERE user_id=:id AND status='paid' LIMIT 1", {'id': user['id']})
+    if not user:
+        return False
+    row = db_fetchone("SELECT id FROM purchases WHERE user_id=:id AND status='paid' LIMIT 1", {'id': user['id']})
     return bool(row)
 
 
@@ -144,66 +116,56 @@ def stripe():
     return stripe
 
 
-def save_paid(s):
-    email = ((s.get('customer_details') or {}).get('email') or s.get('customer_email') or '').strip().lower()
-    sid = s.get('id')
-    if not email or not sid:
-        return False
-    u = db_fetchone('SELECT id FROM users WHERE email=:email', {'email': email})
-    if not u:
-        start = now().isoformat()
-        db_execute('INSERT INTO users(email,password_hash,trial_started_at) VALUES(:email,:password,:trial)', {'email': email, 'password': generate_password_hash(secrets.token_urlsafe(24)), 'trial': start})
+def save_paid(session_obj):
+    user_id = session_obj.get('metadata', {}).get('user_id')
+    if not user_id:
+        email = (session_obj.get('customer_email') or '').strip().lower()
         u = db_fetchone('SELECT id FROM users WHERE email=:email', {'email': email})
-    if DB_BACKEND == 'postgresql':
-        db_execute("""INSERT INTO purchases(user_id,stripe_session_id,payment_intent,amount,currency,status)
-          VALUES(:uid,:sid,:pi,:amount,:currency,'paid')
-          ON CONFLICT (stripe_session_id) DO NOTHING""", {'uid': u['id'], 'sid': sid, 'pi': s.get('payment_intent'), 'amount': s.get('amount_total'), 'currency': s.get('currency')})
-    else:
-        db_execute("""INSERT OR IGNORE INTO purchases(user_id,stripe_session_id,payment_intent,amount,currency,status)
-          VALUES(:uid,:sid,:pi,:amount,:currency,'paid')""", {'uid': u['id'], 'sid': sid, 'pi': s.get('payment_intent'), 'amount': s.get('amount_total'), 'currency': s.get('currency')})
-    return True
+        user_id = u['id'] if u else None
+    if not user_id:
+        return
+    exists = db_fetchone('SELECT id FROM purchases WHERE stripe_session_id=:sid', {'sid': session_obj.get('id')})
+    if not exists:
+        db_execute('INSERT INTO purchases(user_id,stripe_session_id,status,created_at) VALUES(:uid,:sid,\'paid\',:dt)', {'uid': user_id, 'sid': session_obj.get('id'), 'dt': datetime.now(timezone.utc).isoformat()})
 
 
 @app.get('/')
 def home():
-    html = open('index.html', encoding='utf-8').read()
+    with open('index.html', 'r', encoding='utf-8') as f:
+        html = f.read()
     html = html.replace('</body>', '<script src="/ai.js?v=2"></script><script src="/cvpersist.js?v=2"></script></body>')
     return Response(html, mimetype='text/html')
-
-
-@app.get('/ai.js')
-def ai_js():
-    return send_from_directory('.', 'ai.js', mimetype='application/javascript')
-
-
-@app.get('/cvpersist.js')
-def cvpersist_js():
-    return send_from_directory('.', 'cvpersist.js', mimetype='application/javascript')
 
 
 @app.post('/api/register')
 def register():
     d = request.get_json(silent=True) or {}
-    email = str(d.get('email', '')).strip().lower()
-    password = str(d.get('password', ''))
-    if not email or '@' not in email:
-        return jsonify(ok=False, error='INVALID_EMAIL'), 400
+    email = str(d.get('email') or '').strip().lower()
+    password = str(d.get('password') or '')
     if len(password) < 6:
         return jsonify(ok=False, error='PASSWORD_TOO_SHORT'), 400
-    if db_fetchone('SELECT id FROM users WHERE email=:email', {'email': email}):
-        return jsonify(ok=False, error='EMAIL_EXISTS'), 409
-    start = now().isoformat()
-    db_execute('INSERT INTO users(email,password_hash,trial_started_at) VALUES(:email,:password,:trial)', {'email': email, 'password': generate_password_hash(password), 'trial': start})
-    u = db_fetchone('SELECT * FROM users WHERE email=:email', {'email': email})
-    session['user_id'] = u['id']
+    if not email or '@' not in email:
+        return jsonify(ok=False, error='INVALID_EMAIL'), 400
+    exists = db_fetchone('SELECT id FROM users WHERE email=:email', {'email': email})
+    if exists:
+        return jsonify(ok=False, error='EMAIL_EXISTS'), 400
+    now = datetime.now(timezone.utc).isoformat()
+    with engine.begin() as conn:
+        if DB_BACKEND == 'postgresql':
+            result = conn.execute(text('INSERT INTO users(email,password_hash,created_at) VALUES(:email,:password_hash,:created_at) RETURNING id'), {'email': email, 'password_hash': generate_password_hash(password), 'created_at': now})
+            uid = result.scalar()
+        else:
+            result = conn.execute(text('INSERT INTO users(email,password_hash,created_at) VALUES(:email,:password_hash,:created_at)'), {'email': email, 'password_hash': generate_password_hash(password), 'created_at': now})
+            uid = result.lastrowid
+    session['user_id'] = uid
     return jsonify(ok=True)
 
 
 @app.post('/api/login')
 def login():
     d = request.get_json(silent=True) or {}
-    email = str(d.get('email', '')).strip().lower()
-    password = str(d.get('password', ''))
+    email = str(d.get('email') or '').strip().lower()
+    password = str(d.get('password') or '')
     u = db_fetchone('SELECT * FROM users WHERE email=:email', {'email': email})
     if not u or not check_password_hash(u['password_hash'], password):
         return jsonify(ok=False, error='INVALID_LOGIN'), 401
@@ -220,83 +182,80 @@ def logout():
 @app.get('/api/me')
 def me():
     u = current_user()
-    if not u:
-        return jsonify(logged_in=False)
-    active, _, days = trial_info(u)
-    return jsonify(logged_in=True, email=u['email'], trial_active=active, trial_days_left=days, pro=is_pro_user(u))
+    active, days = trial_info(u)
+    return jsonify(logged_in=bool(u), email=u['email'] if u else '', trial_active=active, trial_days_left=days, pro=is_pro_user(u))
 
 
-@app.route('/api/cv', methods=['GET', 'POST'])
-def cv_data_api():
+@app.get('/api/cv')
+def get_cv():
     u = current_user()
     if not u:
         return jsonify(ok=False, error='LOGIN_REQUIRED'), 401
-    if request.method == 'GET':
-        row = db_fetchone('SELECT data FROM cv_data WHERE user_id=:uid', {'uid': u['id']})
-        if not row:
-            return jsonify(ok=True, data={})
-        try:
-            return jsonify(ok=True, data=json.loads(row['data'] or '{}'))
-        except Exception:
-            return jsonify(ok=True, data={})
+    row = db_fetchone('SELECT data,updated_at FROM cv_data WHERE user_id=:id', {'id': u['id']})
+    if not row:
+        return jsonify(ok=True, data=None)
+    try:
+        data = json.loads(row['data'])
+    except Exception:
+        data = None
+    return jsonify(ok=True, data=data, updated_at=row['updated_at'])
+
+
+@app.post('/api/cv')
+def save_cv():
+    u = current_user()
+    if not u:
+        return jsonify(ok=False, error='LOGIN_REQUIRED'), 401
     d = request.get_json(silent=True) or {}
-    payload = json.dumps(d, ensure_ascii=False)
-    if DB_BACKEND == 'postgresql':
-        db_execute("""INSERT INTO cv_data(user_id,data,updated_at)
-          VALUES(:uid,:data,CURRENT_TIMESTAMP)
-          ON CONFLICT (user_id) DO UPDATE SET data=EXCLUDED.data, updated_at=CURRENT_TIMESTAMP""", {'uid': u['id'], 'data': payload})
+    data = d.get('data') or {}
+    raw = json.dumps(data, ensure_ascii=False)
+    now = datetime.now(timezone.utc).isoformat()
+    exists = db_fetchone('SELECT user_id FROM cv_data WHERE user_id=:id', {'id': u['id']})
+    if exists:
+        db_execute('UPDATE cv_data SET data=:data,updated_at=:dt WHERE user_id=:id', {'data': raw, 'dt': now, 'id': u['id']})
     else:
-        db_execute("""INSERT INTO cv_data(user_id,data,updated_at)
-          VALUES(:uid,:data,CURRENT_TIMESTAMP)
-          ON CONFLICT(user_id) DO UPDATE SET data=excluded.data, updated_at=CURRENT_TIMESTAMP""", {'uid': u['id'], 'data': payload})
-    return jsonify(ok=True)
+        db_execute('INSERT INTO cv_data(user_id,data,updated_at) VALUES(:id,:data,:dt)', {'id': u['id'], 'data': raw, 'dt': now})
+    return jsonify(ok=True, updated_at=now)
 
 
-def extract_json(text_value):
-    s = str(text_value or '').strip()
-    if s.startswith('```'):
-        s = re.sub(r'^```(?:json)?\s*', '', s, flags=re.I)
-        s = re.sub(r'\s*```$', '', s)
-    m = re.search(r'\{.*\}', s, re.S)
-    return json.loads(m.group(0) if m else s)
+def extract_json(raw):
+    m = re.search(r'\{.*\}', raw or '', re.S)
+    if not m:
+        raise json.JSONDecodeError('No JSON', raw or '', 0)
+    return json.loads(m.group(0))
 
 
 @app.post('/api/ai-generate')
 def ai_generate():
-    if not current_user():
+    u = current_user()
+    if not u:
         return jsonify(ok=False, error='LOGIN_REQUIRED'), 401
+    if not is_pro_user(u):
+        return jsonify(ok=False, error='TRIAL_EXPIRED'), 402
     if not OPENAI_KEY:
         return jsonify(ok=False, error='AI_NOT_CONFIGURED'), 503
     d = request.get_json(silent=True) or {}
-    profile = d.get('profile') or {}
     offer = str(d.get('offer') or '').strip()
-    if not offer:
+    profile = d.get('profile') or {}
+    if len(offer) < 30:
         return jsonify(ok=False, error='OFFER_REQUIRED'), 400
     from openai import OpenAI
     client = OpenAI(api_key=OPENAI_KEY)
-    original_exps = profile.get('experience') or []
     prompt = f"""
-Eres un especialista senior en selección, CV y sistemas ATS. Debes analizar la compatibilidad REAL entre el candidato y la oferta y proponer una adaptación del CV.
+Eres un experto senior en selección de personal, ATS y optimización de CV.
+Compara ESTA oferta con ESTE CV y prepara una adaptación profesional.
 
-REGLAS OBLIGATORIAS:
-- NO inventes empresas, puestos, fechas, estudios, idiomas, certificaciones, herramientas, clientes, cifras, responsabilidades ni logros.
-- Mantén EXACTAMENTE el mismo número y orden de experiencias laborales.
-- Mantén literalmente puesto, empresa y fechas de cada experiencia.
-- Solo puedes reescribir descripciones para hacerlas más claras y relevantes usando hechos ya presentes en el CV.
-- Las habilidades solo pueden salir de las habilidades que ya tiene el candidato.
-- Una palabra clave de la oferta NO significa que el candidato la posea.
-- Distingue entre requisitos que el CV respalda y requisitos que faltan o no están suficientemente reflejados.
-- El sector, experiencia, funciones y requisitos explícitos de la oferta deben influir en la puntuación.
-- NO otorgues una puntuación alta solo porque el CV esté completo. La puntuación mide compatibilidad con ESTA oferta.
-- Si un requisito importante de la oferta no aparece en el CV, debe reflejarse en 'missing' y reducir la puntuación.
-- 'matches' debe contener solo elementos realmente respaldados por el CV.
-- 'missing' debe contener solo requisitos relevantes de la oferta que no estén respaldados o estén poco reflejados.
-- 'recommendations' debe explicar acciones concretas que el candidato puede revisar, sin sugerir que invente experiencia.
-- 'keywords' debe contener términos relevantes de la oferta útiles para ATS.
+REGLAS CRÍTICAS:
+- NO inventes experiencia, empresas, puestos, fechas, clientes, cifras, herramientas, certificaciones ni resultados.
+- Mantén exactamente el mismo número y orden de experiencias del CV.
+- Conserva literalmente puesto, empresa y fechas de cada experiencia.
+- Solo puedes reescribir la descripción de funciones/logros para alinearla con la oferta, usando información ya presente en el CV.
+- Las habilidades propuestas deben salir únicamente de las habilidades que ya aparecen en el CV.
+- Distingue claramente entre lo que el CV demuestra y lo que la oferta pide pero no aparece en el CV.
 
-PUNTUACIÓN:
-- 40% requisitos y experiencia principal del puesto.
-- 25% funciones y responsabilidades coincidentes.
+PUNTUACIÓN ATS:
+- 40% requisitos y experiencia principal.
+- 25% funciones y responsabilidades.
 - 20% palabras clave y habilidades relevantes.
 - 15% perfil, orientación y contexto profesional.
 - Si falta un requisito esencial, no superes 85 salvo que el resto de la oferta esté claramente cubierto.
@@ -321,6 +280,7 @@ CANDIDATO:
             result[key] = [str(x).strip() for x in result[key] if str(x).strip()]
         returned = result.get('experiences') or []
         safe_experiences = []
+        original_exps = profile.get('experience') or []
         for i, original in enumerate(original_exps):
             ai_exp = returned[i] if i < len(returned) and isinstance(returned[i], dict) else {}
             original = dict(original) if isinstance(original, dict) else {}
@@ -394,6 +354,10 @@ def health():
 
 
 init_db()
+
+# Cargar el simulador de entrevista DESPUÉS de registrar todas las rutas principales.
+# Esto también hace que /interview.js se inyecte en la página y que /api/interview exista.
+import interview_api
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=int(os.getenv('PORT', '5000')))
