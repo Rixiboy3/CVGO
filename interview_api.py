@@ -17,12 +17,10 @@ def register_interview(app):
             return jsonify(ok=False, error='LOGIN_REQUIRED'), 401
         if not app_module.is_pro_user(user):
             return jsonify(ok=False, error='TRIAL_EXPIRED'), 402
-
         key = os.getenv('OPENAI_API_KEY', '').strip()
         model = os.getenv('OPENAI_MODEL', 'gpt-5.6-luna').strip()
         if not key:
             return jsonify(ok=False, error='AI_NOT_CONFIGURED'), 503
-
         d = request.get_json(silent=True) or {}
         offer = str(d.get('offer') or '').strip()
         profile = _profile_from_request(d)
@@ -30,14 +28,11 @@ def register_interview(app):
         answer = str(d.get('answer') or '').strip()
         mode = str(d.get('mode') or 'evaluate').strip()
         asked = d.get('asked') or []
-
         if len(offer) < 30:
             return jsonify(ok=False, error='OFFER_REQUIRED'), 400
-
         from openai import OpenAI
         client = OpenAI(api_key=key)
         profile_json = json.dumps(profile, ensure_ascii=False)
-
         if mode == 'next':
             prompt = f'''Eres un entrevistador senior especializado en selección de personal.
 Genera UNA siguiente pregunta de entrevista totalmente específica para ESTA oferta y ESTE candidato.
@@ -93,13 +88,11 @@ PREGUNTA:
 
 RESPUESTA DEL CANDIDATO:
 {answer}'''
-
         try:
             response = client.responses.create(model=model, input=prompt)
             raw = getattr(response, 'output_text', '') or ''
             m = re.search(r'\{.*\}', raw, re.S)
             result = json.loads(m.group(0) if m else raw)
-
             if mode == 'next':
                 result['question'] = str(result.get('question') or '').strip()
                 result['type'] = str(result.get('type') or 'entrevista').strip()
@@ -109,7 +102,6 @@ RESPUESTA DEL CANDIDATO:
                 if not result['question']:
                     raise ValueError('Pregunta vacía')
                 return jsonify(ok=True, result=result)
-
             result['score'] = max(0, min(100, int(result.get('score', 0))))
             for key_name in ('strengths', 'weaknesses', 'missing'):
                 if not isinstance(result.get(key_name), list):
@@ -122,7 +114,6 @@ RESPUESTA DEL CANDIDATO:
             return jsonify(ok=False, error='AI_INVALID_RESPONSE'), 502
         except Exception as e:
             return jsonify(ok=False, error='AI_REQUEST_FAILED', detail=str(e)[:300]), 502
-
     @app.before_request
     def cvgo_premium_guard():
         if request.path in ('/api/ai-generate', '/api/interview') and request.method == 'POST':
@@ -132,26 +123,20 @@ RESPUESTA DEL CANDIDATO:
                 return jsonify(ok=False, error='LOGIN_REQUIRED'), 401
             if not app_module.is_pro_user(user):
                 return jsonify(ok=False, error='TRIAL_EXPIRED'), 402
-
     original_home = app.view_functions.get('home')
     if original_home:
         def home_with_interview(*args, **kwargs):
             response = original_home(*args, **kwargs)
-            try:
-                body = response.get_data(as_text=True)
-                if '/interview.js' not in body:
-                    body = body.replace('</body>', '<script src="/interview.js?v=1"></script></body>')
-                    response.set_data(body)
-                    response.headers['Content-Length'] = str(len(response.get_data()))
-            except Exception:
-                pass
+            body = response.get_data(as_text=True)
+            if '/interview.js' not in body:
+                body = body.replace('</body>', '<script src="/interview.js?v=2"></script></body>')
+                response.set_data(body)
+                response.headers.pop('Content-Length', None)
             return response
         app.view_functions['home'] = home_with_interview
-
     @app.get('/interview.js')
     def interview_js():
         from flask import send_from_directory
         return send_from_directory('.', 'interview.js', mimetype='application/javascript')
-
 
 register_interview(__import__('app').app)
