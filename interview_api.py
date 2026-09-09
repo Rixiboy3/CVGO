@@ -131,15 +131,15 @@ RESPUESTA DEL CANDIDATO:
             response = original_home(*args, **kwargs)
             body = response.get_data(as_text=True)
             if '/interview.js' not in body:
-                body = body.replace('</body>', '<script src="/interview.js?v=2"></script></body>')
+                body = body.replace('</body>', '<script src="/interview.js?v=3"></script></body>')
             if '/pro.js' not in body:
-                body = body.replace('</body>', '<script src="/pro.js?v=1"></script></body>')
+                body = body.replace('</body>', '<script src="/pro.js?v=2"></script></body>')
             if '/photo.js' not in body:
-                body = body.replace('</body>', '<script src="/photo.js?v=1"></script></body>')
+                body = body.replace('</body>', '<script src="/photo.js?v=2"></script></body>')
             if '/templates.js' not in body:
-                body = body.replace('</body>', '<script src="/templates.js?v=1"></script></body>')
+                body = body.replace('</body>', '<script src="/templates.js?v=3"></script></body>')
             if '/printfix.js' not in body:
-                body = body.replace('</body>', '<script src="/printfix.js?v=1"></script></body>')
+                body = body.replace('</body>', '<script src="/printfix.js?v=2"></script></body>')
             response.set_data(body)
             response.headers.pop('Content-Length', None)
             return response
