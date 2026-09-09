@@ -9,12 +9,12 @@
 .tm{font-family:Arial,Helvetica,sans-serif!important;overflow:visible!important}
 .tm *{box-sizing:border-box!important;min-width:0!important}
 .tm .cvhead{position:relative!important;overflow:visible!important}
-.tm .identity{min-width:0!important;max-width:100%!important}
-.tm h1{overflow-wrap:anywhere!important;word-break:normal!important}
-.tm .role,.tm .headerContact,.tm .sideContact{overflow-wrap:anywhere!important;word-break:normal!important}
+.tm .identity{min-width:0!important;max-width:100%!important;overflow:hidden!important}
+.tm .eyebrow{display:none!important}
+.tm h1{overflow-wrap:break-word!important;word-break:normal!important;white-space:normal!important}
+.tm .role,.tm .headerContact,.tm .sideContact{overflow-wrap:break-word!important;word-break:normal!important;white-space:normal!important}
 
-/* One strong reading column for ordinary templates.
-   Narrow multi-column CV bodies create ugly word wrapping and poor hierarchy. */
+/* One strong reading column for ordinary templates. */
 .tm:not(.p3):not(.m1):not(.m3) main{display:block!important;width:100%!important}
 .tm.c3 main{display:block!important}
 .tm.c3 main section{display:block!important;width:100%!important;border:0!important;border-radius:0!important;padding:0!important;background:transparent!important}
@@ -29,27 +29,31 @@
 .tm .job{margin-bottom:17px!important;break-inside:avoid!important}
 .tm .job:last-child{margin-bottom:0!important}
 .tm .jobhead{gap:14px!important;line-height:1.4!important;align-items:start!important}
-.tm .jobhead b{font-weight:700!important;overflow-wrap:anywhere!important}
-.tm .jobhead span{line-height:1.35!important;white-space:normal!important;overflow-wrap:anywhere!important}
-.tm .job p{margin:5px 0 0!important;line-height:1.5!important}
+.tm .jobhead b{font-weight:700!important;overflow-wrap:break-word!important;word-break:normal!important}
+.tm .jobhead span{line-height:1.35!important;white-space:normal!important;overflow-wrap:break-word!important;word-break:normal!important}
+.tm .job p{margin:5px 0 0!important;line-height:1.5!important;overflow-wrap:break-word!important;word-break:normal!important}
 .tm .skills{gap:7px!important;align-items:flex-start!important}
-.tm .skills span{line-height:1.25!important;padding:6px 9px!important}
+.tm .skills span{line-height:1.25!important;padding:6px 9px!important;overflow-wrap:break-word!important;word-break:normal!important}
+
+/* Side-column templates: enough width, normal word wrapping, no character-by-character text. */
+.tm.p3,.tm.m1,.tm.m3{align-items:stretch!important}
+.tm.p3{grid-template-columns:230px minmax(0,1fr)!important}
+.tm.m1{grid-template-columns:235px minmax(0,1fr)!important}
+.tm.m3{grid-template-columns:minmax(0,1fr) 220px!important}
+.tm.p3 main,.tm.m1 main,.tm.m3 main{display:block!important;min-width:0!important}
+.tm.p3 .sidePanel,.tm.m1 .sidePanel,.tm.m3 .sidePanel{min-width:0!important;overflow:hidden!important}
+.tm.p3 .sidePanel h2,.tm.m1 .sidePanel h2,.tm.m3 .sidePanel h2{word-break:normal!important;overflow-wrap:break-word!important;white-space:normal!important;line-height:1.12!important}
+.tm.p3 .sidePanel .role,.tm.m1 .sidePanel .role,.tm.m3 .sidePanel .role{word-break:normal!important;overflow-wrap:break-word!important;white-space:normal!important;line-height:1.35!important}
+.tm.p3 .sidePanel .sideContact,.tm.m1 .sidePanel .sideContact,.tm.m3 .sidePanel .sideContact{word-break:normal!important;overflow-wrap:anywhere!important;white-space:normal!important}
+.tm.p3 .sidePanel .skills,.tm.m1 .sidePanel .skills,.tm.m3 .sidePanel .skills{width:100%!important}
 
 /* Avoid decorative layouts becoming cramped */
 .tm.c1 section:first-child{padding:18px 21px!important}
-.tm.c2 .cvhead{position:relative!important}
 .tm.c4 .cvhead{position:relative!important;padding-bottom:24px!important}
 .tm.c4 main{margin-top:0!important}
 .tm.n2 .cvhead,.tm.c4 .cvhead{display:block!important;text-align:center!important}
 .tm.n2 .headerContact,.tm.c4 .headerContact{max-width:none!important;margin:10px auto 0!important;text-align:center!important}
 
-/* Side-column templates remain two-column, but their main content is always one column */
-.tm.p3,.tm.m1,.tm.m3{align-items:stretch!important}
-.tm.p3 main,.tm.m1 main,.tm.m3 main{display:block!important;min-width:0!important}
-.tm.p3 .sidePanel,.tm.m1 .sidePanel,.tm.m3 .sidePanel{min-width:0!important;overflow:visible!important}
-.tm.p3 .sidePanel .skills,.tm.m1 .sidePanel .skills,.tm.m3 .sidePanel .skills{width:100%!important}
-
-/* Screen preview: keep the CV elegant and readable */
 @media screen{
   .tm main{padding-top:40px!important;padding-bottom:44px!important}
   .tm section{margin-bottom:27px!important}
@@ -60,7 +64,6 @@
   .tm section h3{font-size:12px!important;margin-bottom:11px!important}
 }
 
-/* A4/PDF: prioritize legibility and breathing room over squeezing content */
 @media print{
   .tm main{padding-top:14mm!important;padding-bottom:14mm!important}
   .tm section{margin-bottom:19pt!important}
@@ -73,15 +76,18 @@
   .tm .skills{gap:6pt!important}
   .tm .skills span{font-size:8.5pt!important;line-height:1.2!important;padding:5pt 7pt!important}
 
-  /* Never force the creative grid into tiny columns */
+  .tm.p3{grid-template-columns:61mm minmax(0,1fr)!important}
+  .tm.m1{grid-template-columns:61mm minmax(0,1fr)!important}
+  .tm.m3{grid-template-columns:minmax(0,1fr) 58mm!important}
+  .tm.p3 .sidePanel,.tm.m1 .sidePanel{padding-left:7mm!important;padding-right:7mm!important}
+  .tm.m3 .sidePanel{padding-left:6mm!important;padding-right:6mm!important}
+  .tm .sidePanel h2{word-break:normal!important;overflow-wrap:break-word!important}
+  .tm .sidePanel .role{word-break:normal!important;overflow-wrap:break-word!important}
+
   .tm.c3 main{display:block!important}
   .tm.c3 main section+section{padding-top:10pt!important}
-
-  /* Clean centered headers */
   .tm.n2 .cvhead,.tm.c4 .cvhead{display:block!important;text-align:center!important}
   .tm.n2 .headerContact,.tm.c4 .headerContact{margin:7pt auto 0!important;text-align:center!important;max-width:none!important}
-
-  /* Ensure no header/text overlap in centered creative designs */
   .tm .cvhead>*{position:relative!important;z-index:1!important}
   .tm .tp{position:relative!important;z-index:2!important}
 }
