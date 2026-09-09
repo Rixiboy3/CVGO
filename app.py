@@ -63,13 +63,15 @@ def save_paid(s):
 @app.get('/')
 def home():
     html=open('index.html',encoding='utf-8').read()
-    html=html.replace('</body>','<script src="/ai.js"></script><script src="/cv.js"></script></body>')
+    html=html.replace('</body>','<script src="/ai.js"></script><script src="/cv.js"></script><script src="/cvpersist.js"></script></body>')
     return Response(html,mimetype='text/html')
 
 @app.get('/ai.js')
 def ai_js(): return send_from_directory('.', 'ai.js')
 @app.get('/cv.js')
 def cv_js(): return send_from_directory('.', 'cv.js')
+@app.get('/cvpersist.js')
+def cvpersist_js(): return send_from_directory('.', 'cvpersist.js')
 
 @app.post('/api/register')
 def register():
