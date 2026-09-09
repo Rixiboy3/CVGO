@@ -12,6 +12,16 @@ def register_billing(app):
         stripe.api_key = app_module.SK
         return stripe
 
+    def stripe_dict(obj):
+        """Convert Stripe SDK objects to plain dicts before using dict APIs."""
+        if isinstance(obj, dict):
+            return obj
+        if hasattr(obj, 'to_dict_recursive'):
+            return obj.to_dict_recursive()
+        if hasattr(obj, '_to_dict'):
+            return obj._to_dict()
+        return dict(obj)
+
     def migrate():
         cols = [
             ('subscription_id', 'TEXT'),
@@ -75,7 +85,9 @@ def register_billing(app):
     app_module.is_pro_user = real_is_pro
 
     def save_subscription(session_obj):
-        email = ((session_obj.get('customer_details') or {}).get('email') or session_obj.get('customer_email') or '').strip().lower()
+        session_obj = stripe_dict(session_obj)
+        customer_details = session_obj.get('customer_details') or {}
+        email = (customer_details.get('email') or session_obj.get('customer_email') or '').strip().lower()
         metadata = session_obj.get('metadata') or {}
         user_id = metadata.get('user_id')
         user = find_user(user_id=user_id, email=email)
@@ -104,6 +116,7 @@ def register_billing(app):
         return True
 
     def update_subscription(sub, fallback_email=''):
+        sub = stripe_dict(sub)
         sub_id = sub.get('id')
         if not sub_id:
             return False
@@ -144,14 +157,9 @@ def register_billing(app):
             return app_module.jsonify(ok=False, error='STRIPE_ANNUAL_PRICE_NOT_CONFIGURED' if plan == 'annual' else 'STRIPE_NOT_CONFIGURED'), 503
         if real_is_pro(user):
             return app_module.jsonify(ok=False, error='ALREADY_PRO'), 409
-
-        # Always build the return URLs from the actual host serving CVGO.
-        # This prevents an old localhost value in Render from sending a production
-        # customer back to a development machine after Stripe Checkout.
         base_url = app_module.request.host_url.rstrip('/')
         success_url = base_url + '/?paid=1&session_id={CHECKOUT_SESSION_ID}'
         cancel_url = base_url + '/?cancelled=1'
-
         try:
             s = st.checkout.Session.create(
                 mode='subscription',
@@ -177,7 +185,7 @@ def register_billing(app):
         if not st or not session_id:
             return app_module.jsonify(ok=False, error='SESSION_REQUIRED'), 400
         try:
-            checkout_session = st.checkout.Session.retrieve(session_id)
+            checkout_session = stripe_dict(st.checkout.Session.retrieve(session_id))
             metadata = checkout_session.get('metadata') or {}
             if str(metadata.get('user_id') or '') != str(user['id']):
                 return app_module.jsonify(ok=False, error='SESSION_USER_MISMATCH'), 403
