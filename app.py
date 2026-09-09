@@ -101,15 +101,33 @@ def ai_generate():
     profile={k:str(data.get(k,'')).strip() for k in ('name','role','summary','skills')}
     experience=data.get('experience') or []
     education=data.get('education') or []
-    prompt=f'''Eres el motor de CV de CVGO. Tu trabajo es adaptar un curriculum a una oferta de empleo de forma profesional, natural y compatible con ATS. Nunca inventes empresas, cargos, fechas, estudios, idiomas, certificaciones o resultados que el candidato no haya proporcionado. Puedes reformular y ordenar la experiencia real, y señalar información que falta.
+    prompt=f'''Eres el motor de CV de CVGO. Tu trabajo es adaptar un curriculum a una oferta de empleo de forma profesional, natural y compatible con ATS.
+
+REGLA CRÍTICA DE VERACIDAD:
+- NO inventes ni añadas empresas, cargos, fechas, estudios, idiomas, certificaciones, herramientas, clientes, cifras, responsabilidades o logros.
+- La experiencia laboral proporcionada por el candidato es una fuente cerrada. Debes conservar EXACTAMENTE el mismo número de experiencias y, para cada una, conservar EXACTAMENTE position, company y dates tal como aparecen en los datos de entrada.
+- SOLO puedes mejorar la redacción de description para destacar requisitos de la oferta que realmente estén respaldados por la descripción original.
+- Si una experiencia no aporta información útil para la oferta, conserva su contenido real y no la rellenes con funciones de la oferta.
+- No copies requisitos de la oferta como si fueran experiencia del candidato.
+- Si falta información, déjala fuera y usa recommendations para indicar qué dato real debería aportar el candidato.
 
 OFERTA DE EMPLEO:\n{job[:12000]}
 
-DATOS DEL CANDIDATO:\n{json.dumps(profile,ensure_ascii=False)}\nEXPERIENCIA:\n{json.dumps(experience,ensure_ascii=False)}\nFORMACIÓN:\n{json.dumps(education,ensure_ascii=False)}
+DATOS DEL CANDIDATO:\n{json.dumps(profile,ensure_ascii=False)}\nEXPERIENCIA ORIGINAL (NO MODIFICAR position/company/dates):\n{json.dumps(experience,ensure_ascii=False)}\nFORMACIÓN ORIGINAL:\n{json.dumps(education,ensure_ascii=False)}
 
 Devuelve SOLO JSON válido, sin markdown, con esta estructura exacta:
 {{"professional_title":"...","professional_summary":"...","experiences":[{{"position":"...","company":"...","dates":"...","description":"..."}}],"skills":["..."],"ats_keywords":["..."],"ats_score":0,"recommendations":["..."]}}
-El resumen debe tener 3-5 líneas. Las descripciones deben usar verbos de acción y priorizar requisitos reales de la oferta. ats_score debe ser un número de 0 a 100 basado en coincidencia de palabras clave y completitud, sin fingir que es el resultado de un ATS comercial.'''
+
+REQUISITOS DEL JSON:
+- experiences debe tener EXACTAMENTE {len(experience)} elementos y mantener el mismo orden.
+- En experiences, position, company y dates deben ser COPIADOS literalmente de la experiencia original correspondiente.
+- Solo description puede reescribirse, sin introducir hechos nuevos.
+- professional_title y professional_summary sí pueden adaptarse al puesto objetivo, pero no pueden afirmar experiencia o conocimientos que no consten en los datos del candidato.
+- skills solo puede contener habilidades ya presentes en los datos del candidato; no añadas habilidades nuevas solo porque aparezcan en la oferta.
+- ats_keywords son palabras clave de la oferta relevantes para el perfil; NO significan que el candidato las posea.
+- ats_score debe ser un número de 0 a 100 basado en coincidencia de palabras clave y completitud, sin fingir que es el resultado de un ATS comercial.
+- El resumen debe tener 3-5 líneas.
+- recommendations debe señalar de forma clara qué información real falta para mejorar el encaje.'''
     try:
         from openai import OpenAI
         client=OpenAI(api_key=OPENAI_KEY)
@@ -117,6 +135,32 @@ El resumen debe tener 3-5 líneas. Las descripciones deben usar verbos de acció
         text=(getattr(r,'output_text','') or '').strip()
         if text.startswith('```'): text=text.replace('```json','',1).replace('```','').strip()
         result=json.loads(text)
+
+        # Safety layer: never allow the model to create, duplicate or alter job history.
+        safe_experiences=[]
+        returned=result.get('experiences') or []
+        for i, original in enumerate(experience):
+            ai_exp=returned[i] if i < len(returned) and isinstance(returned[i],dict) else {}
+            original=dict(original) if isinstance(original,dict) else {}
+            description=str(ai_exp.get('description','')).strip() or str(original.get('description','')).strip()
+            safe_experiences.append({
+                'position':str(original.get('position','')).strip(),
+                'company':str(original.get('company','')).strip(),
+                'dates':str(original.get('dates','')).strip(),
+                'description':description
+            })
+        result['experiences']=safe_experiences
+
+        # Skills are also restricted to the candidate's existing skills.
+        original_skills=[s.strip() for s in str(profile.get('skills','')).split(',') if s.strip()]
+        ai_skills=[str(s).strip() for s in (result.get('skills') or []) if str(s).strip()]
+        if original_skills:
+            result['skills']=[s for s in ai_skills if s.lower() in {x.lower() for x in original_skills}]
+            if not result['skills']:
+                result['skills']=original_skills
+        else:
+            result['skills']=[]
+
         return jsonify(ok=True,result=result,model=OPENAI_MODEL)
     except json.JSONDecodeError:return jsonify(ok=False,error='AI_INVALID_RESPONSE'),502
     except Exception as e:return jsonify(ok=False,error='AI_REQUEST_FAILED',detail=str(e)[:300]),502
