@@ -1,6 +1,6 @@
-import os, sqlite3, secrets
+import os, sqlite3, secrets, json
 from datetime import datetime, timedelta, timezone
-from flask import Flask, request, jsonify, send_from_directory, session
+from flask import Flask, request, jsonify, send_from_directory, session, Response
 from werkzeug.security import generate_password_hash, check_password_hash
 
 app=Flask(__name__,static_folder=".")
@@ -9,6 +9,8 @@ DB=os.getenv("CVGO_DB","cvgo.db")
 SK=os.getenv("STRIPE_SECRET_KEY","").strip()
 PRICE=os.getenv("STRIPE_PRICE_ID","").strip()
 WHSEC=os.getenv("STRIPE_WEBHOOK_SECRET","").strip()
+OPENAI_KEY=os.getenv("OPENAI_API_KEY","").strip()
+OPENAI_MODEL=os.getenv("OPENAI_MODEL","gpt-5.6-luna").strip()
 TRIAL_DAYS=7
 
 def conn():
@@ -54,7 +56,13 @@ def save_paid(s):
     c.commit();c.close();return True
 
 @app.get('/')
-def home():return send_from_directory('.', 'index.html')
+def home():
+    html=open('index.html',encoding='utf-8').read()
+    html=html.replace('</body>','<script src="/ai.js"></script></body>')
+    return Response(html,mimetype='text/html')
+
+@app.get('/ai.js')
+def ai_js(): return send_from_directory('.', 'ai.js')
 
 @app.post('/api/register')
 def register():
@@ -79,7 +87,39 @@ def logout():session.clear();return jsonify(ok=True)
 def me():
     u=current_user()
     if not u:return jsonify(logged_in=False,pro=False)
-    active,end,days=trial_info(u);return jsonify(logged_in=True,email=u['email'],trial_active=active,trial_days_left=days,trial_ends_at=end.isoformat(),pro=is_pro_user(u))
+    active,end,days=trial_info(u);return jsonify(logged_in=True,email=u['email'],trial_active=active,trial_days_left=days,trial_ends_at=end.isoformat(),pro=is_pro_user(u),ai_configured=bool(OPENAI_KEY))
+
+@app.post('/api/ai-generate')
+def ai_generate():
+    u=current_user()
+    if not u:return jsonify(ok=False,error='LOGIN_REQUIRED'),401
+    if not is_pro_user(u):return jsonify(ok=False,error='TRIAL_EXPIRED'),403
+    if not OPENAI_KEY:return jsonify(ok=False,error='AI_NOT_CONFIGURED'),503
+    data=request.get_json(silent=True) or {}
+    job=str(data.get('job_offer','')).strip()
+    if len(job)<30:return jsonify(ok=False,error='JOB_OFFER_REQUIRED'),400
+    profile={k:str(data.get(k,'')).strip() for k in ('name','role','summary','skills')}
+    experience=data.get('experience') or []
+    education=data.get('education') or []
+    prompt=f'''Eres el motor de CV de CVGO. Tu trabajo es adaptar un curriculum a una oferta de empleo de forma profesional, natural y compatible con ATS. Nunca inventes empresas, cargos, fechas, estudios, idiomas, certificaciones o resultados que el candidato no haya proporcionado. Puedes reformular y ordenar la experiencia real, y señalar información que falta.
+
+OFERTA DE EMPLEO:\n{job[:12000]}
+
+DATOS DEL CANDIDATO:\n{json.dumps(profile,ensure_ascii=False)}\nEXPERIENCIA:\n{json.dumps(experience,ensure_ascii=False)}\nFORMACIÓN:\n{json.dumps(education,ensure_ascii=False)}
+
+Devuelve SOLO JSON válido, sin markdown, con esta estructura exacta:
+{{"professional_title":"...","professional_summary":"...","experiences":[{{"position":"...","company":"...","dates":"...","description":"..."}}],"skills":["..."],"ats_keywords":["..."],"ats_score":0,"recommendations":["..."]}}
+El resumen debe tener 3-5 líneas. Las descripciones deben usar verbos de acción y priorizar requisitos reales de la oferta. ats_score debe ser un número de 0 a 100 basado en coincidencia de palabras clave y completitud, sin fingir que es el resultado de un ATS comercial.'''
+    try:
+        from openai import OpenAI
+        client=OpenAI(api_key=OPENAI_KEY)
+        r=client.responses.create(model=OPENAI_MODEL,input=prompt)
+        text=(getattr(r,'output_text','') or '').strip()
+        if text.startswith('```'): text=text.replace('```json','',1).replace('```','').strip()
+        result=json.loads(text)
+        return jsonify(ok=True,result=result,model=OPENAI_MODEL)
+    except json.JSONDecodeError:return jsonify(ok=False,error='AI_INVALID_RESPONSE'),502
+    except Exception as e:return jsonify(ok=False,error='AI_REQUEST_FAILED',detail=str(e)[:300]),502
 
 @app.post('/api/create-checkout')
 def checkout():
@@ -96,11 +136,10 @@ def webhook():
     try:e=st.Webhook.construct_event(request.data,request.headers.get('Stripe-Signature',''),WHSEC)
     except Exception:return 'Invalid signature',400
     if e['type'] in ('checkout.session.completed','invoice.paid'):
-        s=e['data']['object'];
+        s=e['data']['object']
         if e['type']=='checkout.session.completed' and s.get('payment_status')=='paid':save_paid(s)
         elif e['type']=='invoice.paid':
-            email=(s.get('customer_email') or '').strip().lower()
-            c=conn();u=c.execute('SELECT id FROM users WHERE email=?',(email,)).fetchone()
+            email=(s.get('customer_email') or '').strip().lower();c=conn();u=c.execute('SELECT id FROM users WHERE email=?',(email,)).fetchone()
             if u:c.execute("UPDATE purchases SET status='paid' WHERE user_id=?",(u['id'],))
             c.commit();c.close()
     return '',200
@@ -111,7 +150,7 @@ def verify():
 
 @app.get('/api/health')
 def health():
-    c=conn();u=c.execute('SELECT COUNT(*) n FROM users').fetchone()['n'];p=c.execute("SELECT COUNT(*) n FROM purchases WHERE status='paid'").fetchone()['n'];c.close();return jsonify(status='ok',stripe_configured=bool(SK and PRICE),users=u,paid_purchases=p)
+    c=conn();u=c.execute('SELECT COUNT(*) n FROM users').fetchone()['n'];p=c.execute("SELECT COUNT(*) n FROM purchases WHERE status='paid'").fetchone()['n'];c.close();return jsonify(status='ok',stripe_configured=bool(SK and PRICE),ai_configured=bool(OPENAI_KEY),users=u,paid_purchases=p)
 
 init_db()
 if __name__=='__main__':app.run(host='0.0.0.0',port=int(os.getenv('PORT','5000')))
