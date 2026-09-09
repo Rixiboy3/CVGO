@@ -114,6 +114,7 @@ RESPUESTA DEL CANDIDATO:
             return jsonify(ok=False, error='AI_INVALID_RESPONSE'), 502
         except Exception as e:
             return jsonify(ok=False, error='AI_REQUEST_FAILED', detail=str(e)[:300]), 502
+
     @app.before_request
     def cvgo_premium_guard():
         if request.path in ('/api/ai-generate', '/api/interview') and request.method == 'POST':
@@ -123,6 +124,7 @@ RESPUESTA DEL CANDIDATO:
                 return jsonify(ok=False, error='LOGIN_REQUIRED'), 401
             if not app_module.is_pro_user(user):
                 return jsonify(ok=False, error='TRIAL_EXPIRED'), 402
+
     original_home = app.view_functions.get('home')
     if original_home:
         def home_with_interview(*args, **kwargs):
@@ -130,13 +132,21 @@ RESPUESTA DEL CANDIDATO:
             body = response.get_data(as_text=True)
             if '/interview.js' not in body:
                 body = body.replace('</body>', '<script src="/interview.js?v=2"></script></body>')
-                response.set_data(body)
-                response.headers.pop('Content-Length', None)
+            if '/pro.js' not in body:
+                body = body.replace('</body>', '<script src="/pro.js?v=1"></script></body>')
+            response.set_data(body)
+            response.headers.pop('Content-Length', None)
             return response
         app.view_functions['home'] = home_with_interview
+
     @app.get('/interview.js')
     def interview_js():
         from flask import send_from_directory
         return send_from_directory('.', 'interview.js', mimetype='application/javascript')
+
+    @app.get('/pro.js')
+    def pro_js():
+        from flask import send_from_directory
+        return send_from_directory('.', 'pro.js', mimetype='application/javascript')
 
 register_interview(__import__('app').app)
