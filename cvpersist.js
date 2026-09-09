@@ -18,7 +18,7 @@
     if(exp){exp.innerHTML='';window.expCount=0;experiences.forEach(e=>{if(typeof window.addExp==='function')window.addExp();const x=[...exp.querySelectorAll('.item')].at(-1);if(x){x.querySelector('.ep').value=e.position||'';x.querySelector('.ec').value=e.company||'';x.querySelector('.ef').value=e.from||'';x.querySelector('.et').value=e.to||'';x.querySelector('.ed').value=e.description||''}});if(!experiences.length&&typeof window.addExp==='function')window.addExp();}
     if(edu){edu.innerHTML='';window.eduCount=0;educations.forEach(e=>{if(typeof window.addEdu==='function')window.addEdu();const x=[...edu.querySelectorAll('.item')].at(-1);if(x){x.querySelector('.etitle').value=e.title||'';x.querySelector('.eschool').value=e.school||'';x.querySelector('.eyear').value=e.year||''}});if(!educations.length&&typeof window.addEdu==='function')window.addEdu();}
     if(typeof window.render==='function')window.render();
-    if(d.template&&typeof window.template==='function'){const b=[...document.querySelectorAll('.templateBtns button')];const m={classic:0,modern:1,minimal:2};if(b[m[d.template]])window.template(d.template,b[m[d.template]]);}
+    if(d.template&&typeof window.template==='function'){const b=[...document.querySelectorAll('.templateBtns button')];const m={classic:0,modern:1,minimal:2};if(b[m[d.template]])window.template(d.template,b[m.template]);}
   };
   let timer=null,loading=false,dirty=false;
   async function save(){
@@ -47,5 +47,5 @@
   const original=window.loadUser;
   if(typeof original==='function')window.loadUser=async function(){const result=await original.apply(this,arguments);const m=await fetch('/api/me',{credentials:'same-origin'}).then(x=>x.json()).catch(()=>({}));if(m.logged_in){try{sessionStorage.setItem('cvgo_user_email',m.email||'')}catch(e){}addControls();await load()}return result};
   setTimeout(()=>{addControls();fetch('/api/me',{credentials:'same-origin'}).then(x=>x.json()).then(async u=>{if(u.logged_in){try{sessionStorage.setItem('cvgo_user_email',u.email||'')}catch(e){}addControls();await load()}}).catch(()=>{})},600);
-  const ats=document.createElement('script');ats.src='/ats.js?v=1';ats.async=false;document.body.appendChild(ats);
+  const ats=document.createElement('script');ats.src='/static/ats.js?v=1';ats.async=false;document.body.appendChild(ats);
 })();
