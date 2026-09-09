@@ -178,3 +178,6 @@ RESPUESTA DEL CANDIDATO:
         return send_from_directory('.', 'cvgo_stylefix.js', mimetype='application/javascript')
 
 register_interview(__import__('app').app)
+
+# Billing loads after app initialization and route registration.
+import billing_api
