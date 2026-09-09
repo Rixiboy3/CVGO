@@ -1,5 +1,6 @@
 import os
 from datetime import datetime, timezone
+from collections.abc import Mapping
 
 
 def register_billing(app):
@@ -12,15 +13,23 @@ def register_billing(app):
         stripe.api_key = app_module.SK
         return stripe
 
-    def stripe_dict(obj):
-        """Convert Stripe SDK objects to plain dicts before using dict APIs."""
-        if isinstance(obj, dict):
-            return obj
-        if hasattr(obj, 'to_dict_recursive'):
-            return obj.to_dict_recursive()
-        if hasattr(obj, '_to_dict'):
-            return obj._to_dict()
-        return dict(obj)
+    def as_dict(obj):
+        """Normalize Stripe API objects to plain dictionaries."""
+        if obj is None:
+            return {}
+        if isinstance(obj, Mapping):
+            return dict(obj)
+        for method in ('to_dict_recursive', 'to_dict'):
+            fn = getattr(obj, method, None)
+            if callable(fn):
+                try:
+                    return fn()
+                except Exception:
+                    pass
+        try:
+            return dict(obj)
+        except Exception:
+            return {}
 
     def migrate():
         cols = [
@@ -85,24 +94,24 @@ def register_billing(app):
     app_module.is_pro_user = real_is_pro
 
     def save_subscription(session_obj):
-        session_obj = stripe_dict(session_obj)
-        customer_details = session_obj.get('customer_details') or {}
-        email = (customer_details.get('email') or session_obj.get('customer_email') or '').strip().lower()
-        metadata = session_obj.get('metadata') or {}
+        s = as_dict(session_obj)
+        customer_details = as_dict(s.get('customer_details'))
+        email = (customer_details.get('email') or s.get('customer_email') or '').strip().lower()
+        metadata = as_dict(s.get('metadata'))
         user_id = metadata.get('user_id')
         user = find_user(user_id=user_id, email=email)
         if not user:
             return False
-        sid = session_obj.get('id')
-        sub_id = session_obj.get('subscription')
-        customer_id = session_obj.get('customer')
+        sid = s.get('id')
+        sub_id = s.get('subscription')
+        customer_id = s.get('customer')
         plan = metadata.get('plan') or 'monthly'
         if not sid:
             return False
         existing = app_module.db_fetchone('SELECT id FROM purchases WHERE stripe_session_id=:sid', {'sid': sid})
         params = {
-            'uid': user['id'], 'sid': sid, 'pi': session_obj.get('payment_intent'),
-            'amount': session_obj.get('amount_total'), 'currency': session_obj.get('currency'),
+            'uid': user['id'], 'sid': sid, 'pi': s.get('payment_intent'),
+            'amount': s.get('amount_total'), 'currency': s.get('currency'),
             'status': 'paid', 'subid': sub_id, 'customer': customer_id, 'plan': plan,
         }
         if existing:
@@ -116,8 +125,8 @@ def register_billing(app):
         return True
 
     def update_subscription(sub, fallback_email=''):
-        sub = stripe_dict(sub)
-        sub_id = sub.get('id')
+        s = as_dict(sub)
+        sub_id = s.get('id')
         if not sub_id:
             return False
         row = app_module.db_fetchone('SELECT id,user_id FROM purchases WHERE subscription_id=:sid ORDER BY id DESC LIMIT 1', {'sid': sub_id})
@@ -127,15 +136,15 @@ def register_billing(app):
                 row = app_module.db_fetchone('SELECT id,user_id FROM purchases WHERE user_id=:uid ORDER BY id DESC LIMIT 1', {'uid': u['id']})
         if not row:
             return False
-        status = str(sub.get('status') or '').lower()
+        status = str(s.get('status') or '').lower()
         paid_status = 'paid' if status in ('active', 'trialing', 'past_due') else 'canceled'
-        period_end = sub.get('current_period_end')
+        period_end = s.get('current_period_end')
         period_text = datetime.fromtimestamp(period_end, timezone.utc).isoformat() if period_end else None
         app_module.db_execute("""UPDATE purchases SET status=:status,subscription_status=:substatus,
           current_period_end=:period_end,cancel_at_period_end=:cancel
           WHERE id=:id""", {
             'status': paid_status, 'substatus': status, 'period_end': period_text,
-            'cancel': 1 if sub.get('cancel_at_period_end') else 0, 'id': row['id']
+            'cancel': 1 if s.get('cancel_at_period_end') else 0, 'id': row['id']
         })
         return True
 
@@ -185,13 +194,14 @@ def register_billing(app):
         if not st or not session_id:
             return app_module.jsonify(ok=False, error='SESSION_REQUIRED'), 400
         try:
-            checkout_session = stripe_dict(st.checkout.Session.retrieve(session_id))
-            metadata = checkout_session.get('metadata') or {}
+            checkout_session = st.checkout.Session.retrieve(session_id)
+            s = as_dict(checkout_session)
+            metadata = as_dict(s.get('metadata'))
             if str(metadata.get('user_id') or '') != str(user['id']):
                 return app_module.jsonify(ok=False, error='SESSION_USER_MISMATCH'), 403
-            if checkout_session.get('payment_status') not in ('paid', 'no_payment_required'):
+            if s.get('payment_status') not in ('paid', 'no_payment_required'):
                 return app_module.jsonify(ok=False, error='PAYMENT_NOT_CONFIRMED'), 409
-            saved = save_subscription(checkout_session)
+            saved = save_subscription(s)
             if not saved:
                 return app_module.jsonify(ok=False, error='SUBSCRIPTION_NOT_SAVED'), 502
             return app_module.jsonify(ok=True, pro=real_is_pro(user), billing=billing_state(user))
