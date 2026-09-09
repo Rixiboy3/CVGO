@@ -171,8 +171,6 @@ def home():
     return Response(html, mimetype='text/html')
 
 
-# Flask's default static URL is /static/... . The app injects these two scripts
-# at the site root, so expose them explicitly and avoid 404s in production.
 @app.get('/ai.js')
 def ai_js():
     return send_from_directory('.', 'ai.js', mimetype='application/javascript')
@@ -278,19 +276,34 @@ def ai_generate():
     client = OpenAI(api_key=OPENAI_KEY)
     original_exps = profile.get('experience') or []
     prompt = f"""
-Eres un especialista en CV y ATS. Adapta el CV del candidato a la oferta de empleo.
+Eres un especialista senior en selección, CV y sistemas ATS. Debes analizar la compatibilidad REAL entre el candidato y la oferta y proponer una adaptación del CV.
 
 REGLAS OBLIGATORIAS:
 - NO inventes empresas, puestos, fechas, estudios, idiomas, certificaciones, herramientas, clientes, cifras, responsabilidades ni logros.
 - Mantén EXACTAMENTE el mismo número y orden de experiencias laborales.
 - Mantén literalmente puesto, empresa y fechas de cada experiencia.
-- Solo puedes reescribir la descripción de funciones/logros para hacerla más clara y relevante.
+- Solo puedes reescribir descripciones para hacerlas más claras y relevantes usando hechos ya presentes en el CV.
 - Las habilidades solo pueden salir de las habilidades que ya tiene el candidato.
-- Las palabras clave ATS deben ser términos presentes en la oferta; NO afirmes que el candidato posee una competencia si no aparece en sus datos.
-- Mantén toda la formación real sin inventar datos.
+- Una palabra clave de la oferta NO significa que el candidato la posea.
+- Distingue entre requisitos que el CV respalda y requisitos que faltan o no están suficientemente reflejados.
+- El sector, experiencia, funciones y requisitos explícitos de la oferta deben influir en la puntuación.
+- NO otorgues una puntuación alta solo porque el CV esté completo. La puntuación mide compatibilidad con ESTA oferta.
+- Si un requisito importante de la oferta no aparece en el CV, debe reflejarse en 'missing' y reducir la puntuación.
+- 'matches' debe contener solo elementos realmente respaldados por el CV.
+- 'missing' debe contener solo requisitos relevantes de la oferta que no estén respaldados o estén poco reflejados.
+- 'recommendations' debe explicar acciones concretas que el candidato puede revisar, sin sugerir que invente experiencia.
+- 'keywords' debe contener términos relevantes de la oferta útiles para ATS.
 
-Devuelve SOLO JSON con esta estructura:
-{{"score":0,"summary":"","keywords":[],"experiences":[{{"position":"","company":"","dates":"","description":""}}],"skills":[]}}
+PUNTUACIÓN:
+- 40% requisitos y experiencia principal del puesto.
+- 25% funciones y responsabilidades coincidentes.
+- 20% palabras clave y habilidades relevantes.
+- 15% perfil, orientación y contexto profesional.
+- Si falta un requisito esencial, no superes 85 salvo que el resto de la oferta esté claramente cubierto.
+- Si faltan varios requisitos importantes, reduce proporcionalmente la puntuación.
+
+Devuelve SOLO JSON con esta estructura exacta:
+{{"score":0,"summary":"","matches":[],"missing":[],"recommendations":[],"keywords":[],"professional_title":"","professional_summary":"","experiences":[{{"position":"","company":"","dates":"","description":""}}],"skills":[]}}
 
 OFERTA:
 {offer}
@@ -302,6 +315,10 @@ CANDIDATO:
         response = client.responses.create(model=OPENAI_MODEL, input=prompt)
         result = extract_json(getattr(response, 'output_text', ''))
         result['score'] = max(0, min(100, int(result.get('score', 0))))
+        for key in ('matches', 'missing', 'recommendations', 'keywords'):
+            if not isinstance(result.get(key), list):
+                result[key] = []
+            result[key] = [str(x).strip() for x in result[key] if str(x).strip()]
         returned = result.get('experiences') or []
         safe_experiences = []
         for i, original in enumerate(original_exps):
