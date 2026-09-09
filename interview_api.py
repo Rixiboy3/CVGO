@@ -142,6 +142,8 @@ RESPUESTA DEL CANDIDATO:
                 body = body.replace('</body>', '<script src="/printfix.js?v=3"></script></body>')
             if '/cvgo_stylefix.js' not in body:
                 body = body.replace('</body>', '<script src="/cvgo_stylefix.js?v=4"></script></body>')
+            if '/authfix.js' not in body:
+                body = body.replace('</body>', '<script src="/authfix.js?v=1"></script></body>')
             response.set_data(body)
             response.headers.pop('Content-Length', None)
             return response
@@ -176,6 +178,11 @@ RESPUESTA DEL CANDIDATO:
     def cvgo_stylefix_js():
         from flask import send_from_directory
         return send_from_directory('.', 'cvgo_stylefix.js', mimetype='application/javascript')
+
+    @app.get('/authfix.js')
+    def authfix_js():
+        from flask import send_from_directory
+        return send_from_directory('.', 'authfix.js', mimetype='application/javascript')
 
 register_interview(__import__('app').app)
 
