@@ -18,7 +18,7 @@
     if(exp){exp.innerHTML='';window.expCount=0;experiences.forEach(e=>{if(typeof window.addExp==='function')window.addExp();const x=[...exp.querySelectorAll('.item')].at(-1);if(x){x.querySelector('.ep').value=e.position||'';x.querySelector('.ec').value=e.company||'';x.querySelector('.ef').value=e.from||'';x.querySelector('.et').value=e.to||'';x.querySelector('.ed').value=e.description||''}});if(!experiences.length&&typeof window.addExp==='function')window.addExp();}
     if(edu){edu.innerHTML='';window.eduCount=0;educations.forEach(e=>{if(typeof window.addEdu==='function')window.addEdu();const x=[...edu.querySelectorAll('.item')].at(-1);if(x){x.querySelector('.etitle').value=e.title||'';x.querySelector('.eschool').value=e.school||'';x.querySelector('.eyear').value=e.year||''}});if(!educations.length&&typeof window.addEdu==='function')window.addEdu();}
     if(typeof window.render==='function')window.render();
-    if(d.template&&typeof window.template==='function'){const b=[...document.querySelectorAll('.templateBtns button')];const m={classic:0,modern:1,minimal:2};if(b[m[d.template]])window.template(d.template,b[m.template]);}
+    if(d.template&&typeof window.template==='function'){const b=[...document.querySelectorAll('.templateBtns button')];const m={classic:0,modern:1,minimal:2};if(b[m[d.template]])window.template(d.template,b[m[d.template]]);}
   };
   let timer=null,loading=false,dirty=false;
   async function save(){
@@ -67,7 +67,10 @@
       const a=j.result||{},score=Math.max(0,Math.min(100,Number(a.score||0))),keywords=Array.isArray(a.keywords)?a.keywords:[];
       box.innerHTML=`<div><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><b>Compatibilidad con esta oferta</b><div style="font-size:12px;color:#667085;margin-top:3px">Análisis ATS específico para el puesto</div></div><strong style="font-size:24px">${score}/100</strong></div><div class="scorebar"><i style="width:${score}%"></i></div><p style="font-size:13px;line-height:1.5">${escATS(a.summary||'')}</p>${keywords.length?`<div style="font-size:12px;line-height:1.7"><b>Palabras clave de la oferta:</b><br>${keywords.map(k=>`<span style="display:inline-block;padding:3px 7px;margin:3px;border-radius:5px;background:#eef2f6">${escATS(k)}</span>`).join('')}</div>`:''}<div style="margin-top:12px;padding:10px;border-radius:8px;background:#f8fafc;font-size:12px">💡 CVGO no inventa experiencia ni competencias: solo señala oportunidades respaldadas por tu CV.</div></div>`;
     }catch(e){
-      box.innerHTML=`<b>❌ No se pudo analizar la oferta</b><p style="font-size:13px;margin-bottom:0">${escATS(e?.error==='AI_NOT_CONFIGURED'?'La IA no está configurada en el servidor.':e?.error==='OFFER_REQUIRED'?'La oferta es obligatoria.':'Inténtalo de nuevo en unos segundos.')}</p>`;
+      const detail=String(e?.detail||'').trim();
+      const code=String(e?.error||'').trim();
+      const msg=code==='AI_NOT_CONFIGURED'?'La IA no está configurada en el servidor.':code==='OFFER_REQUIRED'?'La oferta es obligatoria.':detail?`Error del servidor (${escATS(code||'AI_REQUEST_FAILED')}): ${escATS(detail)}`:`Error del servidor (${escATS(code||'desconocido')}). Inténtalo de nuevo en unos segundos.`;
+      box.innerHTML=`<b>❌ No se pudo analizar la oferta</b><p style="font-size:13px;margin-bottom:0">${msg}</p>`;
     }
   };
 })();
