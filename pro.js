@@ -22,9 +22,7 @@
     `;document.head.appendChild(s);
   }
 
-  function planButton(id,plan,label){
-    return `<button id="${id}" data-plan="${plan}">${label}</button>`;
-  }
+  function planButton(id,plan,label){return `<button id="${id}" data-plan="${plan}">${label}</button>`}
 
   function openPro(){
     if($('cvgoProModal'))return;
@@ -54,13 +52,13 @@
       const b=$(id);if(!b)return;
       if(trial)b.disabled=true;
       b.onclick=async()=>{
-        const plan=b.dataset.plan,msg=$('cvgoProMsg');b.disabled=true;b.textContent='⏳ Preparando pago...';msg.textContent='';
+        const chosen=b.dataset.plan,msg=$('cvgoProMsg');b.disabled=true;b.textContent='⏳ Preparando pago...';msg.textContent='';
         try{
-          const r=await fetch('/api/create-checkout-v2',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({plan})});
+          const r=await fetch('/api/create-checkout-v2',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({plan:chosen})});
           const j=await r.json();if(!r.ok)throw j;if(j.url){location.href=j.url;return}throw {error:'CHECKOUT_ERROR'}
         }catch(e){
           msg.textContent=e?.error==='STRIPE_ANNUAL_PRICE_NOT_CONFIGURED'?'El plan anual todavía no está configurado.':e?.error==='STRIPE_NOT_CONFIGURED'?'El pago todavía no está configurado.':'No se ha podido abrir el pago. Inténtalo de nuevo.';
-          b.disabled=false;b.textContent=plan==='annual'?'Continuar con 59,99 €/año':'Continuar con 9,99 €/mes';
+          b.disabled=false;b.textContent=chosen==='annual'?'Continuar con 59,99 €/año':'Continuar con 9,99 €/mes';
         }
       };
     });
@@ -69,7 +67,12 @@
     if(cancel)cancel.onclick=async()=>{
       if(!confirm('¿Quieres cancelar la renovación automática? Mantendrás PRO hasta el final del periodo ya pagado.'))return;
       cancel.disabled=true;cancel.textContent='Cancelando...';
-      try{const r=await fetch('/api/cancel-subscription',{method:'POST',credentials:'same-origin'});const j=await r.json();if(!r.ok)throw j;billing=j;me.pro=j.active;openPro().remove?.()}catch(e){$('cvgoProMsg').textContent='No se ha podido cancelar la renovación. Inténtalo de nuevo.';cancel.disabled=false;cancel.textContent='Cancelar renovación'}
+      try{
+        const r=await fetch('/api/cancel-subscription',{method:'POST',credentials:'same-origin'});const j=await r.json();if(!r.ok)throw j;
+        d.remove();await loadMe();addControls();
+      }catch(e){
+        $('cvgoProMsg').textContent='No se ha podido cancelar la renovación. Inténtalo de nuevo.';cancel.disabled=false;cancel.textContent='Cancelar renovación';
+      }
     };
   }
 
@@ -85,16 +88,9 @@
 
   async function init(){
     me=await loadMe();addControls();
-    if(location.search.includes('paid=1')){
-      setTimeout(async()=>{me=await loadMe();addControls()},1800);
-    }
+    if(location.search.includes('paid=1'))setTimeout(async()=>{me=await loadMe();addControls()},1800);
     const oldAnalyze=window.analyze;
-    if(typeof oldAnalyze==='function'){
-      window.analyze=async function(){
-        if(me && !me.pro){openPro();return}
-        return oldAnalyze.apply(this,arguments);
-      };
-    }
+    if(typeof oldAnalyze==='function')window.analyze=async function(){if(me&&!me.pro){openPro();return}return oldAnalyze.apply(this,arguments)};
   }
   setTimeout(init,1000);
 })();
