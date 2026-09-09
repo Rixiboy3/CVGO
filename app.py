@@ -3,14 +3,14 @@ from datetime import datetime, timedelta, timezone
 from flask import Flask, request, jsonify, send_from_directory, session, Response
 from werkzeug.security import generate_password_hash, check_password_hash
 
-app=Flask(__name__,static_folder=".")
-app.secret_key=os.getenv("CVGO_SESSION_SECRET",secrets.token_hex(32))
-DB=os.getenv("CVGO_DB","cvgo.db")
-SK=os.getenv("STRIPE_SECRET_KEY","").strip()
-PRICE=os.getenv("STRIPE_PRICE_ID","").strip()
-WHSEC=os.getenv("STRIPE_WEBHOOK_SECRET","").strip()
-OPENAI_KEY=os.getenv("OPENAI_API_KEY","").strip()
-OPENAI_MODEL=os.getenv("OPENAI_MODEL","gpt-5.6-luna").strip()
+app=Flask(__name__,static_folder='.')
+app.secret_key=os.getenv('CVGO_SESSION_SECRET',secrets.token_hex(32))
+DB=os.getenv('CVGO_DB','cvgo.db')
+SK=os.getenv('STRIPE_SECRET_KEY','').strip()
+PRICE=os.getenv('STRIPE_PRICE_ID','').strip()
+WHSEC=os.getenv('STRIPE_WEBHOOK_SECRET','').strip()
+OPENAI_KEY=os.getenv('OPENAI_API_KEY','').strip()
+OPENAI_MODEL=os.getenv('OPENAI_MODEL','gpt-5.6-luna').strip()
 TRIAL_DAYS=7
 
 def conn():
@@ -22,6 +22,11 @@ def init_db():
     c.execute("""CREATE TABLE IF NOT EXISTS purchases(
       id INTEGER PRIMARY KEY AUTOINCREMENT,user_id INTEGER NOT NULL,stripe_session_id TEXT UNIQUE NOT NULL,
       payment_intent TEXT,amount INTEGER,currency TEXT,status TEXT NOT NULL,created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+      FOREIGN KEY(user_id) REFERENCES users(id))""")
+    c.execute("""CREATE TABLE IF NOT EXISTS cv_data(
+      user_id INTEGER PRIMARY KEY,
+      data TEXT NOT NULL DEFAULT '{}',
+      updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY(user_id) REFERENCES users(id))""")
     c.commit(); c.close()
 
@@ -58,11 +63,13 @@ def save_paid(s):
 @app.get('/')
 def home():
     html=open('index.html',encoding='utf-8').read()
-    html=html.replace('</body>','<script src="/ai.js"></script></body>')
+    html=html.replace('</body>','<script src="/ai.js"></script><script src="/cv.js"></script></body>')
     return Response(html,mimetype='text/html')
 
 @app.get('/ai.js')
 def ai_js(): return send_from_directory('.', 'ai.js')
+@app.get('/cv.js')
+def cv_js(): return send_from_directory('.', 'cv.js')
 
 @app.post('/api/register')
 def register():
@@ -89,77 +96,67 @@ def me():
     if not u:return jsonify(logged_in=False,pro=False)
     active,end,days=trial_info(u);return jsonify(logged_in=True,email=u['email'],trial_active=active,trial_days_left=days,trial_ends_at=end.isoformat(),pro=is_pro_user(u),ai_configured=bool(OPENAI_KEY))
 
+@app.get('/api/cv')
+def get_cv():
+    u=current_user()
+    if not u:return jsonify(ok=False,error='LOGIN_REQUIRED'),401
+    c=conn();row=c.execute('SELECT data,updated_at FROM cv_data WHERE user_id=?',(u['id'],)).fetchone();c.close()
+    if not row:return jsonify(ok=True,data={},updated_at=None)
+    try:data=json.loads(row['data'])
+    except Exception:data={}
+    return jsonify(ok=True,data=data,updated_at=row['updated_at'])
+
+@app.post('/api/cv')
+def save_cv():
+    u=current_user()
+    if not u:return jsonify(ok=False,error='LOGIN_REQUIRED'),401
+    data=request.get_json(silent=True) or {}
+    allowed={'name','role','email','phone','city','linkedin','summary','skills','experience','education','template'}
+    clean={k:data.get(k) for k in allowed if k in data}
+    payload=json.dumps(clean,ensure_ascii=False)
+    c=conn();c.execute("INSERT INTO cv_data(user_id,data,updated_at) VALUES(?,?,CURRENT_TIMESTAMP) ON CONFLICT(user_id) DO UPDATE SET data=excluded.data,updated_at=CURRENT_TIMESTAMP",(u['id'],payload));c.commit();c.close()
+    return jsonify(ok=True)
+
 @app.post('/api/ai-generate')
 def ai_generate():
     u=current_user()
     if not u:return jsonify(ok=False,error='LOGIN_REQUIRED'),401
     if not is_pro_user(u):return jsonify(ok=False,error='TRIAL_EXPIRED'),403
     if not OPENAI_KEY:return jsonify(ok=False,error='AI_NOT_CONFIGURED'),503
-    data=request.get_json(silent=True) or {}
-    job=str(data.get('job_offer','')).strip()
+    data=request.get_json(silent=True) or {};job=str(data.get('job_offer','')).strip()
     if len(job)<30:return jsonify(ok=False,error='JOB_OFFER_REQUIRED'),400
-    profile={k:str(data.get(k,'')).strip() for k in ('name','role','summary','skills')}
-    experience=data.get('experience') or []
-    education=data.get('education') or []
-    prompt=f'''Eres el motor de CV de CVGO. Tu trabajo es adaptar un curriculum a una oferta de empleo de forma profesional, natural y compatible con ATS.
-
+    profile={k:str(data.get(k,'')).strip() for k in ('name','role','summary','skills')};experience=data.get('experience') or [];education=data.get('education') or []
+    prompt=f'''Eres el motor de CV de CVGO. Adapta un curriculum a una oferta de empleo de forma profesional, natural y compatible con ATS.
 REGLA CRÍTICA DE VERACIDAD:
 - NO inventes ni añadas empresas, cargos, fechas, estudios, idiomas, certificaciones, herramientas, clientes, cifras, responsabilidades o logros.
-- La experiencia laboral proporcionada por el candidato es una fuente cerrada. Debes conservar EXACTAMENTE el mismo número de experiencias y, para cada una, conservar EXACTAMENTE position, company y dates tal como aparecen en los datos de entrada.
-- SOLO puedes mejorar la redacción de description para destacar requisitos de la oferta que realmente estén respaldados por la descripción original.
-- Si una experiencia no aporta información útil para la oferta, conserva su contenido real y no la rellenes con funciones de la oferta.
+- Conserva EXACTAMENTE el mismo número de experiencias y, para cada una, conserva EXACTAMENTE position, company y dates.
+- SOLO puedes mejorar description para destacar requisitos realmente respaldados por la descripción original.
 - No copies requisitos de la oferta como si fueran experiencia del candidato.
-- Si falta información, déjala fuera y usa recommendations para indicar qué dato real debería aportar el candidato.
-
+- Si falta información, déjala fuera y usa recommendations.
 OFERTA DE EMPLEO:\n{job[:12000]}
-
-DATOS DEL CANDIDATO:\n{json.dumps(profile,ensure_ascii=False)}\nEXPERIENCIA ORIGINAL (NO MODIFICAR position/company/dates):\n{json.dumps(experience,ensure_ascii=False)}\nFORMACIÓN ORIGINAL:\n{json.dumps(education,ensure_ascii=False)}
-
-Devuelve SOLO JSON válido, sin markdown, con esta estructura exacta:
-{{"professional_title":"...","professional_summary":"...","experiences":[{{"position":"...","company":"...","dates":"...","description":"..."}}],"skills":["..."],"ats_keywords":["..."],"ats_score":0,"recommendations":["..."]}}
-
-REQUISITOS DEL JSON:
-- experiences debe tener EXACTAMENTE {len(experience)} elementos y mantener el mismo orden.
-- En experiences, position, company y dates deben ser COPIADOS literalmente de la experiencia original correspondiente.
-- Solo description puede reescribirse, sin introducir hechos nuevos.
-- professional_title y professional_summary sí pueden adaptarse al puesto objetivo, pero no pueden afirmar experiencia o conocimientos que no consten en los datos del candidato.
-- skills solo puede contener habilidades ya presentes en los datos del candidato; no añadas habilidades nuevas solo porque aparezcan en la oferta.
-- ats_keywords son palabras clave de la oferta relevantes para el perfil; NO significan que el candidato las posea.
-- ats_score debe ser un número de 0 a 100 basado en coincidencia de palabras clave y completitud, sin fingir que es el resultado de un ATS comercial.
-- El resumen debe tener 3-5 líneas.
-- recommendations debe señalar de forma clara qué información real falta para mejorar el encaje.'''
+DATOS DEL CANDIDATO:\n{json.dumps(profile,ensure_ascii=False)}\nEXPERIENCIA ORIGINAL:\n{json.dumps(experience,ensure_ascii=False)}\nFORMACIÓN ORIGINAL:\n{json.dumps(education,ensure_ascii=False)}
+Devuelve SOLO JSON válido con: professional_title, professional_summary, experiences, skills, ats_keywords, ats_score, recommendations.
+REQUISITOS: experiences exactamente {len(experience)} elementos y mismo orden; position/company/dates literalmente iguales; solo description puede reescribirse sin hechos nuevos; skills solo habilidades ya presentes; ats_keywords son términos de la oferta y no implican que el candidato los posea; ats_score 0-100; recommendations indica información real que falta.'''
     try:
         from openai import OpenAI
-        client=OpenAI(api_key=OPENAI_KEY)
-        r=client.responses.create(model=OPENAI_MODEL,input=prompt)
-        text=(getattr(r,'output_text','') or '').strip()
+        client=OpenAI(api_key=OPENAI_KEY);r=client.responses.create(model=OPENAI_MODEL,input=prompt);text=(getattr(r,'output_text','') or '').strip()
         if text.startswith('```'):
-            text=re.sub(r'^```(?:json)?\s*','',text,flags=re.I)
-            text=re.sub(r'\s*```$','',text).strip()
-        try:
-            result=json.loads(text)
+            text=re.sub(r'^```(?:json)?\s*','',text,flags=re.I);text=re.sub(r'\s*```$','',text).strip()
+        try:result=json.loads(text)
         except json.JSONDecodeError:
             match=re.search(r'\{[\s\S]*\}',text)
-            if not match: raise
+            if not match:raise
             result=json.loads(match.group(0))
-        if not isinstance(result,dict): raise ValueError('AI response is not a JSON object')
-
-        safe_experiences=[]
-        returned=result.get('experiences') or []
-        for i, original in enumerate(experience):
-            ai_exp=returned[i] if i < len(returned) and isinstance(returned[i],dict) else {}
-            original=dict(original) if isinstance(original,dict) else {}
-            description=str(ai_exp.get('description','')).strip() or str(original.get('description','')).strip()
+        if not isinstance(result,dict):raise ValueError('AI response is not a JSON object')
+        returned=result.get('experiences') or [];safe_experiences=[]
+        for i,original in enumerate(experience):
+            ai_exp=returned[i] if i<len(returned) and isinstance(returned[i],dict) else {};original=dict(original) if isinstance(original,dict) else {};description=str(ai_exp.get('description','')).strip() or str(original.get('description','')).strip()
             safe_experiences.append({'position':str(original.get('position','')).strip(),'company':str(original.get('company','')).strip(),'dates':str(original.get('dates','')).strip(),'description':description})
         result['experiences']=safe_experiences
-
-        original_skills=[s.strip() for s in str(profile.get('skills','')).split(',') if s.strip()]
-        ai_skills=[str(s).strip() for s in (result.get('skills') or []) if str(s).strip()]
+        original_skills=[s.strip() for s in str(profile.get('skills','')).split(',') if s.strip()];ai_skills=[str(s).strip() for s in (result.get('skills') or []) if str(s).strip()]
         if original_skills:
-            allowed={x.lower() for x in original_skills}
-            result['skills']=[s for s in ai_skills if s.lower() in allowed] or original_skills
-        else:
-            result['skills']=[]
+            allowed_skills={x.lower() for x in original_skills};result['skills']=[s for s in ai_skills if s.lower() in allowed_skills] or original_skills
+        else:result['skills']=[]
         return jsonify(ok=True,result=result,model=OPENAI_MODEL)
     except json.JSONDecodeError:return jsonify(ok=False,error='AI_INVALID_RESPONSE'),502
     except Exception as e:return jsonify(ok=False,error='AI_REQUEST_FAILED',detail=str(e)[:300]),502
