@@ -82,7 +82,12 @@
     const header=document.querySelector('header');
     if(header&&!$('cvgoProBtn')){const b=document.createElement('button');b.id='cvgoProBtn';b.textContent=me.trial_active?'🎁 Prueba activa':me.pro?'⭐ PRO activo':'⭐ Activar PRO';b.onclick=openPro;header.appendChild(b)}
     const banner=$('trialBanner');
-    if(banner){banner.style.cursor='pointer';banner.title='Ver planes CVGO';banner.onclick=openPro}
+    if(banner){
+      banner.style.cursor='pointer';
+      banner.title='Ver planes CVGO';
+      if(!me.trial_active&&!me.pro)banner.textContent='⭐ Tu prueba gratuita ha terminado · Activa PRO para continuar';
+      banner.onclick=openPro;
+    }
     if(!me.pro&&!$('cvgoProFloat')){const b=document.createElement('button');b.id='cvgoProFloat';b.textContent='⭐ Activar PRO';b.onclick=openPro;document.body.appendChild(b)}
   }
 
