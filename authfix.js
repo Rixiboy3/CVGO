@@ -45,6 +45,11 @@
       .cvgo-hero-cta{border:0;background:#111827;color:#fff;border-radius:11px;padding:13px 19px;font-size:14px;font-weight:850;cursor:pointer;box-shadow:0 9px 22px rgba(16,24,40,.16);transition:.18s}
       .cvgo-hero-cta:hover{transform:translateY(-1px);box-shadow:0 12px 26px rgba(16,24,40,.22)}
       .cvgo-price-note{display:inline-block;margin-left:11px;font-size:12px;color:#667085;vertical-align:middle}
+      .cvgo-consent{display:flex;gap:10px;align-items:flex-start;margin:14px 0 4px;padding:12px 13px;border:1px solid #e4e7ec;border-radius:11px;background:#f8fafc;color:#475467;font-size:11.5px;line-height:1.45;text-align:left}
+      .cvgo-consent input{width:17px!important;height:17px!important;min-width:17px;margin:1px 0 0!important;padding:0!important;accent-color:#2563eb;box-shadow:none!important}
+      .cvgo-consent a{color:#2563eb;font-weight:700;text-decoration:underline}
+      .cvgo-consent-error{display:none;color:#b42318;font-size:11.5px;margin:-1px 0 9px}
+      .cvgo-consent.invalid{border-color:#fda29b;background:#fff6f5}
       @media(max-width:900px){.auth{grid-template-columns:1fr;gap:30px;max-width:560px;padding:38px 22px 45px}.cvgo-marketing{order:0}.auth .card{order:1}.cvgo-marketing h2{font-size:42px}.cvgo-marketing{max-width:100%}.auth:before{display:none}}
       @media(max-width:600px){body:has(#auth:not(.hidden)) header{padding:0 20px}.auth{min-height:auto;margin:0 auto;padding:28px 15px 40px}.cvgo-marketing h2{font-size:35px;letter-spacing:-1.5px}.cvgo-lead{font-size:15px}.cvgo-features{gap:13px}.auth .card{padding:32px 24px 28px}.auth h1{font-size:28px}.cvgo-price-note{display:block;margin:10px 0 0}}
     `;
@@ -57,11 +62,50 @@
     auth.prepend(panel);
     const cta=document.getElementById('cvgoHeroCta'); if(cta)cta.onclick=()=>{if(typeof authMode!=='undefined')authMode='register';if(typeof applyAuthLabels==='function')applyAuthLabels();const email=document.getElementById('authEmail'),pass=document.getElementById('authPass');if(email)email.value='';if(pass)pass.value='';if(email)email.focus()};
   }
-  function applyAuthLabels(){
-    if(typeof authMode==='undefined')return; const title=document.getElementById('authTitle'),text=document.getElementById('authText'),btn=document.getElementById('authBtn');const switchText=document.getElementById('switchText'),switchBtn=document.getElementById('switchBtn'),trial=document.querySelector('#auth .trial');if(!title||!text||!btn||!switchText||!switchBtn)return;
-    if(authMode==='login'){title.textContent='Bienvenido de nuevo';text.textContent='Inicia sesión en tu cuenta de CVGO y continúa trabajando en tus CV.';btn.textContent='Iniciar sesión →';switchText.textContent='¿Aún no tienes cuenta?';switchBtn.textContent='Crear cuenta gratis →';if(trial)trial.style.display='none'}else{title.textContent='Crea tu cuenta';text.textContent='Prueba todas las funciones de CVGO durante 7 días.';btn.textContent='Crear mi cuenta →';switchText.textContent='¿Ya tienes cuenta?';switchBtn.textContent='Iniciar sesión';if(trial)trial.style.display='block'}
-  }
   function addBrand(){const card=document.querySelector('#auth .card');if(card&&!card.querySelector('.auth-brand')){const brand=document.createElement('div');brand.className='auth-brand';brand.innerHTML='<div class="auth-mark">CVGO</div>';card.prepend(brand)}}
-  function init(){style();addMarketing();addBrand();if(typeof authMode!=='undefined'){authMode='login';applyAuthLabels();const originalToggle=window.toggleAuth;if(typeof originalToggle==='function'&&!originalToggle.__cvgoWrapped){function wrappedToggle(){const toRegister=authMode==='login';originalToggle();applyAuthLabels();if(toRegister){const email=document.getElementById('authEmail'),pass=document.getElementById('authPass');if(email)email.value='';if(pass)pass.value='';if(email)email.focus()}}wrappedToggle.__cvgoWrapped=true;window.toggleAuth=wrappedToggle}}}
+  function addConsent(){
+    const card=document.querySelector('#auth .card');
+    if(!card||document.getElementById('cvgoConsent'))return;
+    const msg=document.getElementById('authMsg');
+    if(!msg)return;
+    const wrap=document.createElement('label');
+    wrap.className='cvgo-consent';
+    wrap.id='cvgoConsentWrap';
+    wrap.innerHTML='<input id="cvgoConsent" type="checkbox"><span>Acepto las <a href="/legal#condiciones" target="_blank" rel="noopener">Condiciones de uso y contratación</a> y confirmo que he leído la <a href="/legal#privacidad" target="_blank" rel="noopener">Política de privacidad</a>.</span>';
+    const err=document.createElement('div');
+    err.id='cvgoConsentError';
+    err.className='cvgo-consent-error';
+    err.textContent='Debes aceptar las condiciones y confirmar la información de privacidad para crear tu cuenta.';
+    msg.parentNode.insertBefore(wrap,msg);
+    msg.parentNode.insertBefore(err,msg);
+    const cb=document.getElementById('cvgoConsent');
+    cb.addEventListener('change',()=>{wrap.classList.remove('invalid');err.style.display='none'});
+  }
+  function applyAuthLabels(){
+    if(typeof authMode==='undefined')return; const title=document.getElementById('authTitle'),text=document.getElementById('authText'),btn=document.getElementById('authBtn');const switchText=document.getElementById('switchText'),switchBtn=document.getElementById('switchBtn'),trial=document.querySelector('#auth .trial'),wrap=document.getElementById('cvgoConsentWrap'),err=document.getElementById('cvgoConsentError');if(!title||!text||!btn||!switchText||!switchBtn)return;
+    if(authMode==='login'){title.textContent='Bienvenido de nuevo';text.textContent='Inicia sesión en tu cuenta de CVGO y continúa trabajando en tus CV.';btn.textContent='Iniciar sesión →';switchText.textContent='¿Aún no tienes cuenta?';switchBtn.textContent='Crear cuenta gratis →';if(trial)trial.style.display='none';if(wrap)wrap.style.display='none';if(err)err.style.display='none'}else{title.textContent='Crea tu cuenta';text.textContent='Prueba todas las funciones de CVGO durante 7 días.';btn.textContent='Crear mi cuenta →';switchText.textContent='¿Ya tienes cuenta?';switchBtn.textContent='Iniciar sesión';if(trial)trial.style.display='block';if(wrap)wrap.style.display='flex'}
+  }
+  function protectRegister(){
+    if(typeof authMode==='undefined'||authMode!=='register')return true;
+    const cb=document.getElementById('cvgoConsent'),wrap=document.getElementById('cvgoConsentWrap'),err=document.getElementById('cvgoConsentError');
+    if(cb&& !cb.checked){if(wrap)wrap.classList.add('invalid');if(err)err.style.display='block';cb.focus();return false}
+    return true;
+  }
+  function init(){
+    style();addMarketing();addBrand();addConsent();
+    if(typeof authMode!=='undefined'){
+      authMode='login';applyAuthLabels();
+      const originalToggle=window.toggleAuth;
+      if(typeof originalToggle==='function'&&!originalToggle.__cvgoWrapped){
+        function wrappedToggle(){const toRegister=authMode==='login';originalToggle();applyAuthLabels();if(toRegister){const email=document.getElementById('authEmail'),pass=document.getElementById('authPass');if(email)email.value='';if(pass)pass.value='';if(email)email.focus()}}
+        wrappedToggle.__cvgoWrapped=true;window.toggleAuth=wrappedToggle;
+      }
+      const originalSubmit=window.submitAuth;
+      if(typeof originalSubmit==='function'&&!originalSubmit.__cvgoWrapped){
+        async function wrappedSubmit(){if(!protectRegister())return originalSubmit();}
+        wrappedSubmit.__cvgoWrapped=true;window.submitAuth=wrappedSubmit;
+      }
+    }
+  }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();
