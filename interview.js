@@ -21,6 +21,7 @@
 
   function shell(){
     const out=$('interviewOut');
+    if(!out)return;
     out.innerHTML=`<div id="ivSim" style="border:1px solid #dbe4ee;border-radius:13px;background:#f8fafc;padding:15px">
       <div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap">
         <div><b>🎙️ Simulador de entrevista CVGO</b><div id="ivProgress" style="font-size:12px;color:#667085;margin-top:3px"></div></div>
@@ -33,8 +34,7 @@
   }
 
   function renderQuestion(q){
-    stopVoice(false);
-    state.current=q;
+    stopVoice(false); state.current=q;
     $('ivProgress').textContent=`Pregunta ${state.index+1} de 8 · ${q.type||'entrevista'}`;
     $('ivQuestion').innerHTML=`<div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:14px">
       <div style="font-size:17px;font-weight:800;line-height:1.4">${esc(q.question)}</div>
@@ -48,8 +48,7 @@
         <button type="button" class="primary" id="ivEval" onclick="window.cvgoEvaluateAnswer()" style="margin-top:0;flex:1;min-width:180px">🎯 Evaluar mi respuesta</button>
       </div>
       <div id="ivVoiceStatus" style="font-size:12px;color:#667085;margin-top:7px">Puedes escribir o responder hablando. CVGO convertirá tu voz en texto para evaluarla.</div>`;
-    $('ivResult').innerHTML='';
-    initVoice();
+    $('ivResult').innerHTML=''; initVoice();
   }
 
   function initVoice(){
@@ -78,10 +77,7 @@
     if(!SpeechRecognition||!answer)return;
     const recognition=new SpeechRecognition();
     state.recognition=recognition;state.listening=true;state.voiceBase=answer.value.trim();
-    recognition.lang='es-ES';
-    recognition.continuous=true;
-    recognition.interimResults=true;
-    recognition.maxAlternatives=1;
+    recognition.lang='es-ES'; recognition.continuous=true; recognition.interimResults=true; recognition.maxAlternatives=1;
     recognition.onstart=()=>{
       if(btn){btn.textContent='⏹️ Terminar respuesta';btn.style.background='#fef3f2';btn.style.color='#b42318'}
       if(status){status.textContent='🔴 Escuchando... habla con naturalidad. Puedes hacer pausas; pulsa “Terminar respuesta” cuando acabes.';status.style.color='#b42318'}
@@ -92,17 +88,17 @@
         const text=event.results[i][0].transcript;
         if(event.results[i].isFinal)finalText+=text+' ';else interim+=text;
       }
-      const base=state.voiceBase?state.voiceBase+' ':' ';answer.value=(base+finalText+interim).trim();
+      const base=state.voiceBase?state.voiceBase+' ':' ';
+      answer.value=(base+finalText+interim).trim();
       answer.dispatchEvent(new Event('input',{bubbles:true}));
     };
     recognition.onerror=(event)=>{
-      const friendly={not-allowed:'El navegador no tiene permiso para usar el micrófono.',service-not-allowed:'El reconocimiento de voz no está permitido.',no-speech:'No se ha detectado voz. Vuelve a intentarlo.',audio-capture:'No se ha detectado ningún micrófono.'};
-      stopVoice(false);if(status){status.textContent='⚠️ '+(friendly[event.error]||'No se ha podido usar el micrófono. Puedes escribir la respuesta.');status.style.color='#b42318'}
+      const friendly={'not-allowed':'El navegador no tiene permiso para usar el micrófono.','service-not-allowed':'El reconocimiento de voz no está permitido.','no-speech':'No se ha detectado voz. Vuelve a intentarlo.','audio-capture':'No se ha detectado ningún micrófono.'};
+      stopVoice(false);
+      if(status){status.textContent='⚠️ '+(friendly[event.error]||'No se ha podido usar el micrófono. Puedes escribir la respuesta.');status.style.color='#b42318'}
     };
     recognition.onend=()=>{
-      if(state.listening){
-        try{recognition.start()}catch(e){stopVoice(true)}
-      }
+      if(state.listening){try{recognition.start()}catch(e){stopVoice(true)}}
     };
     try{recognition.start()}catch(e){stopVoice(false);if(status)status.textContent='No se pudo iniciar el micrófono. Comprueba los permisos del navegador.';}
   };
@@ -126,7 +122,7 @@
   }
 
   function showError(e){
-    const msg=e?.error==='TRIAL_EXPIRED'?'Tu prueba gratuita ha terminado. Activa PRO para continuar.':e?.error==='AI_NOT_CONFIGURED'?'La IA no está configurada en el servidor.':e?.error==='OFFER_REQUIRED'?'Necesitas una oferta de empleo para preparar la entrevista.':e?.error==='ANSWER_REQUIRED'?'Escribe una respuesta antes de evaluarla.':'No se ha podido conectar con el simulador. Inténtalo de nuevo.';
+    const msg=e?.error==='TRIAL_EXPIRED'?'Tu prueba gratuita ha terminado. Activa PRO para continuar.':e?.error==='AI_NOT_CONFIGURED'?'La IA no está configurada en el servidor.':e?.error==='OFFER_REQUIRED'?'Necesitas una oferta de empleo para preparar la entrevista.':e?.error==='ANSWER_REQUIRED'?'Escribe una respuesta antes de evaluarla.':e?.detail?`Error de IA: ${esc(e.detail)}`:'No se ha podido conectar con el simulador. Inténtalo de nuevo.';
     const out=$('interviewOut'); if(out)out.innerHTML=`<div style="padding:13px;background:#fef3f2;color:#b42318;border-radius:9px;font-size:13px">${msg}</div>`;
   }
 
@@ -136,16 +132,14 @@
   }
 
   window.makeInterview=async function(){
-    stopVoice(false);
-    state.offer=getOffer();state.profile=profile();state.asked=[];state.answers=[];state.index=0;
+    stopVoice(false);state.offer=getOffer();state.profile=profile();state.asked=[];state.answers=[];state.index=0;
     if(state.offer.length<30){$('interviewOut').innerHTML='<div style="padding:13px;background:#fef3f2;color:#b42318;border-radius:9px;font-size:13px">Pega primero la oferta de empleo en la pestaña Carta o en Optimiza tu CV con IA.</div>';return}
     shell();await first();
   };
 
   window.cvgoEvaluateAnswer=async function(){
     if(state.busy||!state.current)return;
-    stopVoice(true);
-    const answer=($('ivAnswer')?.value||'').trim();
+    stopVoice(true);const answer=($('ivAnswer')?.value||'').trim();
     if(answer.length<10){alert('Habla o escribe una respuesta algo más completa para poder evaluarla.');return}
     state.busy=true;const btn=$('ivEval');if(btn){btn.disabled=true;btn.textContent='⏳ Evaluando tu respuesta...'}
     try{const r=await callAPI({mode:'evaluate',offer:state.offer,profile:state.profile,question:state.current.question,answer});state.answers.push({score:Number(r.score)||0});renderResult(r)}catch(e){showError(e)}finally{state.busy=false}
