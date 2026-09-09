@@ -6,6 +6,24 @@
     try{const r=await fetch('/api/me',{credentials:'same-origin'});me=await r.json();billing=me.billing||null;return me}catch(e){return null}
   }
 
+  async function verifyPaidSession(){
+    const params=new URLSearchParams(location.search);
+    if(params.get('paid')!=='1'||!params.get('session_id'))return;
+    try{
+      const r=await fetch('/api/checkout-success?session_id='+encodeURIComponent(params.get('session_id')),{credentials:'same-origin'});
+      const j=await r.json();
+      if(r.ok&&j.ok){
+        me=await loadMe();
+        if(me?.pro){
+          const clean=location.origin+location.pathname;
+          history.replaceState({},'',clean);
+          addControls();
+          setTimeout(()=>{alert('✅ Pago confirmado. Tu suscripción CVGO PRO ya está activa.');},100);
+        }
+      }
+    }catch(e){}
+  }
+
   function addStyles(){
     if($('cvgoProStyles'))return;
     const s=document.createElement('style');s.id='cvgoProStyles';s.textContent=`
@@ -81,19 +99,22 @@
     addStyles();
     const header=document.querySelector('header');
     if(header&&!$('cvgoProBtn')){const b=document.createElement('button');b.id='cvgoProBtn';b.textContent=me.trial_active?'🎁 Prueba activa':me.pro?'⭐ PRO activo':'⭐ Activar PRO';b.onclick=openPro;header.appendChild(b)}
+    else if($('cvgoProBtn')){$('cvgoProBtn').textContent=me.trial_active?'🎁 Prueba activa':me.pro?'⭐ PRO activo':'⭐ Activar PRO'}
     const banner=$('trialBanner');
     if(banner){
       banner.style.cursor='pointer';
       banner.title='Ver planes CVGO';
-      if(!me.trial_active&&!me.pro)banner.textContent='⭐ Tu prueba gratuita ha terminado · Activa PRO para continuar';
+      if(me.trial_active)banner.textContent='🎁 Tu prueba gratuita está activa';
+      else if(me.pro)banner.textContent='⭐ CVGO PRO activo';
+      else banner.textContent='⭐ Tu prueba gratuita ha terminado · Activa PRO para continuar';
       banner.onclick=openPro;
     }
-    if(!me.pro&&!$('cvgoProFloat')){const b=document.createElement('button');b.id='cvgoProFloat';b.textContent='⭐ Activar PRO';b.onclick=openPro;document.body.appendChild(b)}
+    if(me.pro){const f=$('cvgoProFloat');if(f)f.remove();}
+    else if(!$('cvgoProFloat')){const b=document.createElement('button');b.id='cvgoProFloat';b.textContent='⭐ Activar PRO';b.onclick=openPro;document.body.appendChild(b)}
   }
 
   async function init(){
-    me=await loadMe();addControls();
-    if(location.search.includes('paid=1'))setTimeout(async()=>{me=await loadMe();addControls()},1800);
+    me=await loadMe();addControls();await verifyPaidSession();
     const oldAnalyze=window.analyze;
     if(typeof oldAnalyze==='function')window.analyze=async function(){if(me&&!me.pro){openPro();return}return oldAnalyze.apply(this,arguments)};
   }
