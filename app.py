@@ -10,8 +10,6 @@ app.secret_key = os.getenv('CVGO_SESSION_SECRET', '').strip()
 if not app.secret_key:
     app.secret_key = secrets.token_hex(32)
 
-# Production: set DATABASE_URL to a managed PostgreSQL database (Supabase, Neon, etc.).
-# Local fallback: SQLite remains available for development.
 DATABASE_URL = os.getenv('DATABASE_URL', '').strip()
 DB = os.getenv('CVGO_DB', 'cvgo.db')
 if DATABASE_URL:
@@ -154,31 +152,35 @@ def save_paid(s):
     u = db_fetchone('SELECT id FROM users WHERE email=:email', {'email': email})
     if not u:
         start = now().isoformat()
-        db_execute(
-            'INSERT INTO users(email,password_hash,trial_started_at) VALUES(:email,:password,:trial)',
-            {'email': email, 'password': generate_password_hash(secrets.token_urlsafe(24)), 'trial': start}
-        )
+        db_execute('INSERT INTO users(email,password_hash,trial_started_at) VALUES(:email,:password,:trial)', {'email': email, 'password': generate_password_hash(secrets.token_urlsafe(24)), 'trial': start})
         u = db_fetchone('SELECT id FROM users WHERE email=:email', {'email': email})
     if DB_BACKEND == 'postgresql':
         db_execute("""INSERT INTO purchases(user_id,stripe_session_id,payment_intent,amount,currency,status)
           VALUES(:uid,:sid,:pi,:amount,:currency,'paid')
-          ON CONFLICT (stripe_session_id) DO NOTHING""",
-          {'uid': u['id'], 'sid': sid, 'pi': s.get('payment_intent'), 'amount': s.get('amount_total'), 'currency': s.get('currency')})
+          ON CONFLICT (stripe_session_id) DO NOTHING""", {'uid': u['id'], 'sid': sid, 'pi': s.get('payment_intent'), 'amount': s.get('amount_total'), 'currency': s.get('currency')})
     else:
         db_execute("""INSERT OR IGNORE INTO purchases(user_id,stripe_session_id,payment_intent,amount,currency,status)
-          VALUES(:uid,:sid,:pi,:amount,:currency,'paid')""",
-          {'uid': u['id'], 'sid': sid, 'pi': s.get('payment_intent'), 'amount': s.get('amount_total'), 'currency': s.get('currency')})
+          VALUES(:uid,:sid,:pi,:amount,:currency,'paid')""", {'uid': u['id'], 'sid': sid, 'pi': s.get('payment_intent'), 'amount': s.get('amount_total'), 'currency': s.get('currency')})
     return True
 
 
 @app.get('/')
 def home():
     html = open('index.html', encoding='utf-8').read()
-    # Server persistence is handled by cvpersist.js. Do not load the old
-    # localStorage persistence module (cv.js), as it can restore stale data
-    # and create duplicate/incorrect experience and education blocks.
-    html = html.replace('</body>', '<script src="/ai.js"></script><script src="/cvpersist.js"></script></body>')
+    html = html.replace('</body>', '<script src="/ai.js?v=2"></script><script src="/cvpersist.js?v=2"></script></body>')
     return Response(html, mimetype='text/html')
+
+
+# Flask's default static URL is /static/... . The app injects these two scripts
+# at the site root, so expose them explicitly and avoid 404s in production.
+@app.get('/ai.js')
+def ai_js():
+    return send_from_directory('.', 'ai.js', mimetype='application/javascript')
+
+
+@app.get('/cvpersist.js')
+def cvpersist_js():
+    return send_from_directory('.', 'cvpersist.js', mimetype='application/javascript')
 
 
 @app.post('/api/register')
@@ -193,10 +195,7 @@ def register():
     if db_fetchone('SELECT id FROM users WHERE email=:email', {'email': email}):
         return jsonify(ok=False, error='EMAIL_EXISTS'), 409
     start = now().isoformat()
-    db_execute(
-        'INSERT INTO users(email,password_hash,trial_started_at) VALUES(:email,:password,:trial)',
-        {'email': email, 'password': generate_password_hash(password), 'trial': start}
-    )
+    db_execute('INSERT INTO users(email,password_hash,trial_started_at) VALUES(:email,:password,:trial)', {'email': email, 'password': generate_password_hash(password), 'trial': start})
     u = db_fetchone('SELECT * FROM users WHERE email=:email', {'email': email})
     session['user_id'] = u['id']
     return jsonify(ok=True)
@@ -247,13 +246,11 @@ def cv_data_api():
     if DB_BACKEND == 'postgresql':
         db_execute("""INSERT INTO cv_data(user_id,data,updated_at)
           VALUES(:uid,:data,CURRENT_TIMESTAMP)
-          ON CONFLICT (user_id) DO UPDATE SET data=EXCLUDED.data, updated_at=CURRENT_TIMESTAMP""",
-          {'uid': u['id'], 'data': payload})
+          ON CONFLICT (user_id) DO UPDATE SET data=EXCLUDED.data, updated_at=CURRENT_TIMESTAMP""", {'uid': u['id'], 'data': payload})
     else:
         db_execute("""INSERT INTO cv_data(user_id,data,updated_at)
           VALUES(:uid,:data,CURRENT_TIMESTAMP)
-          ON CONFLICT(user_id) DO UPDATE SET data=excluded.data, updated_at=CURRENT_TIMESTAMP""",
-          {'uid': u['id'], 'data': payload})
+          ON CONFLICT(user_id) DO UPDATE SET data=excluded.data, updated_at=CURRENT_TIMESTAMP""", {'uid': u['id'], 'data': payload})
     return jsonify(ok=True)
 
 
@@ -280,7 +277,6 @@ def ai_generate():
     from openai import OpenAI
     client = OpenAI(api_key=OPENAI_KEY)
     original_exps = profile.get('experience') or []
-    original_edu = profile.get('education') or []
     prompt = f"""
 Eres un especialista en CV y ATS. Adapta el CV del candidato a la oferta de empleo.
 
