@@ -174,59 +174,44 @@ def save_paid(s):
 @app.get('/')
 def home():
     html = open('index.html', encoding='utf-8').read()
-    html = html.replace('</body>', '<script src="/ai.js"></script><script src="/cv.js"></script><script src="/cvpersist.js"></script></body>')
+    # Server persistence is handled by cvpersist.js. Do not load the old
+    # localStorage persistence module (cv.js), as it can restore stale data
+    # and create duplicate/incorrect experience and education blocks.
+    html = html.replace('</body>', '<script src="/ai.js"></script><script src="/cvpersist.js"></script></body>')
     return Response(html, mimetype='text/html')
-
-
-@app.get('/ai.js')
-def ai_js():
-    return send_from_directory('.', 'ai.js')
-
-
-@app.get('/cv.js')
-def cv_js():
-    return send_from_directory('.', 'cv.js')
-
-
-@app.get('/cvpersist.js')
-def cvpersist_js():
-    return send_from_directory('.', 'cvpersist.js')
 
 
 @app.post('/api/register')
 def register():
-    data = request.get_json(silent=True) or {}
-    email = str(data.get('email', '')).strip().lower()
-    password = str(data.get('password', ''))
-    if '@' not in email:
+    d = request.get_json(silent=True) or {}
+    email = str(d.get('email', '')).strip().lower()
+    password = str(d.get('password', ''))
+    if not email or '@' not in email:
         return jsonify(ok=False, error='INVALID_EMAIL'), 400
     if len(password) < 6:
         return jsonify(ok=False, error='PASSWORD_TOO_SHORT'), 400
-    if db_fetchone('SELECT 1 FROM users WHERE email=:email', {'email': email}):
+    if db_fetchone('SELECT id FROM users WHERE email=:email', {'email': email}):
         return jsonify(ok=False, error='EMAIL_EXISTS'), 409
     start = now().isoformat()
     db_execute(
         'INSERT INTO users(email,password_hash,trial_started_at) VALUES(:email,:password,:trial)',
         {'email': email, 'password': generate_password_hash(password), 'trial': start}
     )
-    uid = db_fetchone('SELECT id FROM users WHERE email=:email', {'email': email})['id']
-    session.clear()
-    session['user_id'] = uid
-    return jsonify(ok=True, email=email, trial_days=TRIAL_DAYS)
+    u = db_fetchone('SELECT * FROM users WHERE email=:email', {'email': email})
+    session['user_id'] = u['id']
+    return jsonify(ok=True)
 
 
 @app.post('/api/login')
 def login():
-    data = request.get_json(silent=True) or {}
-    email = str(data.get('email', '')).strip().lower()
-    password = str(data.get('password', ''))
+    d = request.get_json(silent=True) or {}
+    email = str(d.get('email', '')).strip().lower()
+    password = str(d.get('password', ''))
     u = db_fetchone('SELECT * FROM users WHERE email=:email', {'email': email})
     if not u or not check_password_hash(u['password_hash'], password):
         return jsonify(ok=False, error='INVALID_LOGIN'), 401
-    session.clear()
     session['user_id'] = u['id']
-    active, end, days = trial_info(u)
-    return jsonify(ok=True, email=email, trial_active=active, trial_days_left=days, pro=is_pro_user(u))
+    return jsonify(ok=True)
 
 
 @app.post('/api/logout')
@@ -239,94 +224,91 @@ def logout():
 def me():
     u = current_user()
     if not u:
-        return jsonify(logged_in=False, pro=False)
-    active, end, days = trial_info(u)
-    return jsonify(logged_in=True, email=u['email'], trial_active=active, trial_days_left=days,
-                   trial_ends_at=end.isoformat(), pro=is_pro_user(u), ai_configured=bool(OPENAI_KEY))
+        return jsonify(logged_in=False)
+    active, _, days = trial_info(u)
+    return jsonify(logged_in=True, email=u['email'], trial_active=active, trial_days_left=days, pro=is_pro_user(u))
 
 
-@app.get('/api/cv')
-def get_cv():
+@app.route('/api/cv', methods=['GET', 'POST'])
+def cv_data_api():
     u = current_user()
     if not u:
         return jsonify(ok=False, error='LOGIN_REQUIRED'), 401
-    row = db_fetchone('SELECT data,updated_at FROM cv_data WHERE user_id=:id', {'id': u['id']})
-    if not row:
-        return jsonify(ok=True, data={}, updated_at=None)
-    try:
-        data = json.loads(row['data'])
-    except Exception:
-        data = {}
-    return jsonify(ok=True, data=data, updated_at=str(row['updated_at']) if row['updated_at'] else None)
-
-
-@app.post('/api/cv')
-def save_cv():
-    u = current_user()
-    if not u:
-        return jsonify(ok=False, error='LOGIN_REQUIRED'), 401
-    data = request.get_json(silent=True) or {}
-    allowed = {'name','role','email','phone','city','linkedin','summary','skills','experience','education','template'}
-    clean = {k: data.get(k) for k in allowed if k in data}
-    payload = json.dumps(clean, ensure_ascii=False)
+    if request.method == 'GET':
+        row = db_fetchone('SELECT data FROM cv_data WHERE user_id=:uid', {'uid': u['id']})
+        if not row:
+            return jsonify(ok=True, data={})
+        try:
+            return jsonify(ok=True, data=json.loads(row['data'] or '{}'))
+        except Exception:
+            return jsonify(ok=True, data={})
+    d = request.get_json(silent=True) or {}
+    payload = json.dumps(d, ensure_ascii=False)
     if DB_BACKEND == 'postgresql':
-        db_execute("""INSERT INTO cv_data(user_id,data,updated_at) VALUES(:uid,:data,CURRENT_TIMESTAMP)
-          ON CONFLICT (user_id) DO UPDATE SET data=EXCLUDED.data,updated_at=CURRENT_TIMESTAMP""",
+        db_execute("""INSERT INTO cv_data(user_id,data,updated_at)
+          VALUES(:uid,:data,CURRENT_TIMESTAMP)
+          ON CONFLICT (user_id) DO UPDATE SET data=EXCLUDED.data, updated_at=CURRENT_TIMESTAMP""",
           {'uid': u['id'], 'data': payload})
     else:
-        db_execute("""INSERT INTO cv_data(user_id,data,updated_at) VALUES(:uid,:data,CURRENT_TIMESTAMP)
-          ON CONFLICT(user_id) DO UPDATE SET data=excluded.data,updated_at=CURRENT_TIMESTAMP""",
+        db_execute("""INSERT INTO cv_data(user_id,data,updated_at)
+          VALUES(:uid,:data,CURRENT_TIMESTAMP)
+          ON CONFLICT(user_id) DO UPDATE SET data=excluded.data, updated_at=CURRENT_TIMESTAMP""",
           {'uid': u['id'], 'data': payload})
     return jsonify(ok=True)
 
 
+def extract_json(text_value):
+    s = str(text_value or '').strip()
+    if s.startswith('```'):
+        s = re.sub(r'^```(?:json)?\s*', '', s, flags=re.I)
+        s = re.sub(r'\s*```$', '', s)
+    m = re.search(r'\{.*\}', s, re.S)
+    return json.loads(m.group(0) if m else s)
+
+
 @app.post('/api/ai-generate')
 def ai_generate():
-    u = current_user()
-    if not u:
+    if not current_user():
         return jsonify(ok=False, error='LOGIN_REQUIRED'), 401
-    if not is_pro_user(u):
-        return jsonify(ok=False, error='TRIAL_EXPIRED'), 403
     if not OPENAI_KEY:
         return jsonify(ok=False, error='AI_NOT_CONFIGURED'), 503
-    data = request.get_json(silent=True) or {}
-    job = str(data.get('job_offer', '')).strip()
-    if len(job) < 30:
-        return jsonify(ok=False, error='JOB_OFFER_REQUIRED'), 400
-    profile = {k: str(data.get(k, '')).strip() for k in ('name','role','summary','skills')}
-    experience = data.get('experience') or []
-    education = data.get('education') or []
-    prompt = f'''Eres el motor de CV de CVGO. Adapta un curriculum a una oferta de empleo de forma profesional, natural y compatible con ATS.
-REGLA CRÍTICA DE VERACIDAD:
-- NO inventes ni añadas empresas, cargos, fechas, estudios, idiomas, certificaciones, herramientas, clientes, cifras, responsabilidades o logros.
-- Conserva EXACTAMENTE el mismo número de experiencias y, para cada una, conserva EXACTAMENTE position, company y dates.
-- SOLO puedes mejorar description para destacar requisitos realmente respaldados por la descripción original.
-- No copies requisitos de la oferta como si fueran experiencia del candidato.
-- Si falta información, déjala fuera y usa recommendations.
-OFERTA DE EMPLEO:\n{job[:12000]}
-DATOS DEL CANDIDATO:\n{json.dumps(profile,ensure_ascii=False)}\nEXPERIENCIA ORIGINAL:\n{json.dumps(experience,ensure_ascii=False)}\nFORMACIÓN ORIGINAL:\n{json.dumps(education,ensure_ascii=False)}
-Devuelve SOLO JSON válido con: professional_title, professional_summary, experiences, skills, ats_keywords, ats_score, recommendations.
-REQUISITOS: experiences exactamente {len(experience)} elementos y mismo orden; position/company/dates literalmente iguales; solo description puede reescribirse sin hechos nuevos; skills solo habilidades ya presentes; ats_keywords son términos de la oferta y no implican que el candidato los posea; ats_score 0-100; recommendations indica información real que falta.'''
+    d = request.get_json(silent=True) or {}
+    profile = d.get('profile') or {}
+    offer = str(d.get('offer') or '').strip()
+    if not offer:
+        return jsonify(ok=False, error='OFFER_REQUIRED'), 400
+    from openai import OpenAI
+    client = OpenAI(api_key=OPENAI_KEY)
+    original_exps = profile.get('experience') or []
+    original_edu = profile.get('education') or []
+    prompt = f"""
+Eres un especialista en CV y ATS. Adapta el CV del candidato a la oferta de empleo.
+
+REGLAS OBLIGATORIAS:
+- NO inventes empresas, puestos, fechas, estudios, idiomas, certificaciones, herramientas, clientes, cifras, responsabilidades ni logros.
+- Mantén EXACTAMENTE el mismo número y orden de experiencias laborales.
+- Mantén literalmente puesto, empresa y fechas de cada experiencia.
+- Solo puedes reescribir la descripción de funciones/logros para hacerla más clara y relevante.
+- Las habilidades solo pueden salir de las habilidades que ya tiene el candidato.
+- Las palabras clave ATS deben ser términos presentes en la oferta; NO afirmes que el candidato posee una competencia si no aparece en sus datos.
+- Mantén toda la formación real sin inventar datos.
+
+Devuelve SOLO JSON con esta estructura:
+{{"score":0,"summary":"","keywords":[],"experiences":[{{"position":"","company":"","dates":"","description":""}}],"skills":[]}}
+
+OFERTA:
+{offer}
+
+CANDIDATO:
+{json.dumps(profile, ensure_ascii=False)}
+"""
     try:
-        from openai import OpenAI
-        client = OpenAI(api_key=OPENAI_KEY)
-        r = client.responses.create(model=OPENAI_MODEL, input=prompt)
-        out = (getattr(r, 'output_text', '') or '').strip()
-        if out.startswith('```'):
-            out = re.sub(r'^```(?:json)?\s*', '', out, flags=re.I)
-            out = re.sub(r'\s*```$', '', out).strip()
-        try:
-            result = json.loads(out)
-        except json.JSONDecodeError:
-            match = re.search(r'\{[\s\S]*\}', out)
-            if not match:
-                raise
-            result = json.loads(match.group(0))
-        if not isinstance(result, dict):
-            raise ValueError('AI response is not a JSON object')
+        response = client.responses.create(model=OPENAI_MODEL, input=prompt)
+        result = extract_json(getattr(response, 'output_text', ''))
+        result['score'] = max(0, min(100, int(result.get('score', 0))))
         returned = result.get('experiences') or []
         safe_experiences = []
-        for i, original in enumerate(experience):
+        for i, original in enumerate(original_exps):
             ai_exp = returned[i] if i < len(returned) and isinstance(returned[i], dict) else {}
             original = dict(original) if isinstance(original, dict) else {}
             description = str(ai_exp.get('description', '')).strip() or str(original.get('description', '')).strip()
