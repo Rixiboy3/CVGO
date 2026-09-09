@@ -139,7 +139,7 @@ RESPUESTA DEL CANDIDATO:
             if '/templates.js' not in body:
                 body = body.replace('</body>', '<script src="/templates.js?v=3"></script></body>')
             if '/printfix.js' not in body:
-                body = body.replace('</body>', '<script src="/printfix.js?v=2"></script></body>')
+                body = body.replace('</body>', '<script src="/printfix.js?v=3"></script></body>')
             if '/cvgo_stylefix.js' not in body:
                 body = body.replace('</body>', '<script src="/cvgo_stylefix.js?v=4"></script></body>')
             response.set_data(body)
