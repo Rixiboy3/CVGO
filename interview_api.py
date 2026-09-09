@@ -138,6 +138,8 @@ RESPUESTA DEL CANDIDATO:
                 body = body.replace('</body>', '<script src="/photo.js?v=1"></script></body>')
             if '/templates.js' not in body:
                 body = body.replace('</body>', '<script src="/templates.js?v=1"></script></body>')
+            if '/printfix.js' not in body:
+                body = body.replace('</body>', '<script src="/printfix.js?v=1"></script></body>')
             response.set_data(body)
             response.headers.pop('Content-Length', None)
             return response
@@ -162,5 +164,10 @@ RESPUESTA DEL CANDIDATO:
     def templates_js():
         from flask import send_from_directory
         return send_from_directory('.', 'templates.js', mimetype='application/javascript')
+
+    @app.get('/printfix.js')
+    def printfix_js():
+        from flask import send_from_directory
+        return send_from_directory('.', 'printfix.js', mimetype='application/javascript')
 
 register_interview(__import__('app').app)
