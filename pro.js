@@ -3,25 +3,43 @@
   let me=null,billing=null;
 
   async function loadMe(){
-    try{const r=await fetch('/api/me',{credentials:'same-origin'});me=await r.json();billing=me.billing||null;return me}catch(e){return null}
+    try{const r=await fetch('/api/me',{credentials:'same-origin',cache:'no-store'});me=await r.json();billing=me.billing||null;return me}catch(e){return null}
   }
 
   async function verifyPaidSession(){
     const params=new URLSearchParams(location.search);
-    if(params.get('paid')!=='1'||!params.get('session_id'))return;
-    try{
-      const r=await fetch('/api/checkout-success?session_id='+encodeURIComponent(params.get('session_id')),{credentials:'same-origin'});
-      const j=await r.json();
-      if(r.ok&&j.ok){
-        me=await loadMe();
-        if(me?.pro){
-          const clean=location.origin+location.pathname;
-          history.replaceState({},'',clean);
-          addControls();
-          setTimeout(()=>{alert('✅ Pago confirmado. Tu suscripción CVGO PRO ya está activa.');},100);
+    const sessionId=params.get('session_id');
+    if(params.get('paid')!=='1'||!sessionId)return;
+
+    // Stripe can return the customer before the webhook has finished.
+    // Verify the Checkout Session directly, then re-check /api/me.
+    let lastError='';
+    for(let attempt=0;attempt<4;attempt++){
+      try{
+        const r=await fetch('/api/checkout-success?session_id='+encodeURIComponent(sessionId),{credentials:'same-origin',cache:'no-store'});
+        const j=await r.json();
+        if(r.ok&&j.ok){
+          me=await loadMe();
+          if(me?.pro){
+            const clean=location.origin+location.pathname;
+            history.replaceState({},'',clean);
+            addControls();
+            setTimeout(()=>{alert('✅ Pago confirmado. Tu suscripción CVGO PRO ya está activa.');},100);
+            return;
+          }
+          lastError='El pago se verificó, pero la cuenta todavía no aparece como PRO.';
+        }else{
+          lastError=j?.error||'No se ha podido verificar el pago.';
+          if(j?.detail)lastError+=': '+j.detail;
         }
-      }
-    }catch(e){}
+      }catch(e){lastError='Error de conexión al verificar el pago.';}
+      await new Promise(resolve=>setTimeout(resolve,1500));
+    }
+
+    // Do not hide a billing problem anymore: show the exact server error.
+    if(lastError){
+      setTimeout(()=>alert('⚠️ El pago se ha realizado, pero CVGO no ha podido activar PRO.\n\n'+lastError+'\n\nNo vuelvas a pagar. Envíame esta pantalla y revisamos la activación.'),100);
+    }
   }
 
   function addStyles(){
