@@ -74,3 +74,15 @@
     }
   };
 })();
+
+// Load the real AI interview simulator after the persistence/ATS code is ready.
+(function(){
+  if(document.getElementById('cvgoInterviewScript')) return;
+  const s=document.createElement('script');
+  s.id='cvgoInterviewScript';
+  s.src='/interview.js?v=1';
+  s.defer=true;
+  s.onload=()=>console.log('CVGO interview simulator loaded');
+  s.onerror=()=>console.error('CVGO interview simulator failed to load');
+  document.head.appendChild(s);
+})();
