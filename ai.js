@@ -6,19 +6,29 @@ function addAIBox(){
   const cvTab=document.getElementById('cvTab');cvTab.insertBefore(box,cvTab.firstChild);
 }
 function listBlock(title,items,icon){if(!Array.isArray(items)||!items.length)return '';return `<div style="margin-top:12px"><b>${icon} ${title}</b><ul style="margin:6px 0 0 18px;padding:0;font-size:13px;line-height:1.55">${items.map(x=>`<li>${escAI(x)}</li>`).join('')}</ul></div>`}
+function deriveFit(keywords,profile,offer){
+  const cvText=[profile.role,profile.summary,profile.skills,...(profile.experience||[]).flatMap(e=>[e.position,e.company,e.description]),...(profile.education||[]).flatMap(e=>[e.title,e.school])].join(' ').toLowerCase();
+  const matches=[],missing=[];
+  (keywords||[]).forEach(k=>{const term=String(k||'').trim();if(!term)return;const found=cvText.includes(term.toLowerCase());(found?matches:missing).push(term)});
+  const recommendations=missing.slice(0,5).map(k=>`Revisar si puedes reflejar de forma veraz «${k}» en tu perfil o experiencia.`);
+  if(!recommendations.length)recommendations.push('El CV ya refleja las principales palabras clave detectadas en la oferta.');
+  return {matches,missing,recommendations};
+}
 window.generateAICV=async function(){
   const btn=document.getElementById('aiBtn'),msg=document.getElementById('aiMsg'),out=document.getElementById('aiResult'),job=(document.getElementById('aiJob')?.value||'').trim();
   if(job.length<30){msg.textContent='Pega una oferta de empleo de al menos 30 caracteres.';msg.style.color='#b42318';return}
   const experience=[...document.querySelectorAll('#experience .item')].map(x=>({position:x.querySelector('.ep')?.value||'',company:x.querySelector('.ec')?.value||'',dates:(x.querySelector('.ef')?.value||'')+' - '+(x.querySelector('.et')?.value||''),description:x.querySelector('.ed')?.value||''}));
   const education=[...document.querySelectorAll('#education .item')].map(x=>({title:x.querySelector('.etitle')?.value||'',school:x.querySelector('.eschool')?.value||'',year:x.querySelector('.eyear')?.value||''}));
-  const data={offer:job,profile:{name:document.getElementById('name')?.value||'',role:document.getElementById('role')?.value||'',summary:document.getElementById('summary')?.value||'',skills:document.getElementById('skills')?.value||'',experience,education}};
+  const profile={name:document.getElementById('name')?.value||'',role:document.getElementById('role')?.value||'',summary:document.getElementById('summary')?.value||'',skills:document.getElementById('skills')?.value||'',experience,education};
+  const data={offer:job,profile};
   btn.disabled=true;btn.textContent='⏳ Analizando oferta y generando CV...';msg.textContent='La IA está trabajando...';msg.style.color='#667085';out.innerHTML='';
   try{
     const r=await fetch('/api/ai-generate',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(data)});
     const j=await r.json();if(!r.ok)throw j;const a=j.result||{};window._cvgoAI=a;
     const score=Math.max(0,Math.min(100,Number(a.score||a.ats_score||0)));
     const keywords=Array.isArray(a.keywords)?a.keywords:(a.ats_keywords||[]);
-    out.innerHTML=`<div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:13px"><div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><b>Resultado de la optimización</b><strong style="font-size:22px">${score}/100</strong></div><div class="scorebar"><i style="width:${score}%"></i></div><p style="font-size:13px;line-height:1.5">${escAI(a.summary||a.professional_summary||'')}</p>${listBlock('Lo que cumples',a.matches,'🟢')}${listBlock('Lo que falta o está poco reflejado',a.missing,'🟠')}${listBlock('Recomendaciones',a.recommendations,'💡')}${keywords.length?`<div style="margin-top:12px;font-size:12px;line-height:1.7"><b>Palabras clave detectadas:</b><br>${keywords.map(k=>`<span style="display:inline-block;padding:3px 7px;margin:3px;border-radius:5px;background:#eef2f6">${escAI(k)}</span>`).join('')}</div>`:''}<button class="primary" style="margin-top:14px" onclick="applyAICV()">✓ Aplicar optimización al CV</button></div>`;
+    const fit=deriveFit(keywords,profile,job);a.matches=fit.matches;a.missing=fit.missing;a.recommendations=fit.recommendations;
+    out.innerHTML=`<div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:13px"><div style="display:flex;justify-content:space-between;gap:10px;align-items:center"><b>Resultado de la optimización</b><strong style="font-size:22px">${score}/100</strong></div><div class="scorebar"><i style="width:${score}%"></i></div><p style="font-size:13px;line-height:1.5">${escAI(a.summary||a.professional_summary||'')}</p>${listBlock('Lo que cumples',fit.matches,'🟢')}${listBlock('Lo que falta o está poco reflejado',fit.missing,'🟠')}${listBlock('Recomendaciones',fit.recommendations,'💡')}${keywords.length?`<div style="margin-top:12px;font-size:12px;line-height:1.7"><b>Palabras clave detectadas:</b><br>${keywords.map(k=>`<span style="display:inline-block;padding:3px 7px;margin:3px;border-radius:5px;background:#eef2f6">${escAI(k)}</span>`).join('')}</div>`:''}<button class="primary" style="margin-top:14px" onclick="applyAICV()">✓ Aplicar optimización al CV</button></div>`;
     msg.textContent='✓ Análisis completado. Revisa el resultado antes de aplicarlo.';msg.style.color='#067647';
   }catch(e){
     msg.textContent=e.error==='AI_NOT_CONFIGURED'?'La IA aún no está configurada en el servidor.':e.error==='TRIAL_EXPIRED'?'Tu prueba gratuita ha terminado. Activa PRO para continuar.':e.error==='OFFER_REQUIRED'?'La oferta es obligatoria.':'No se pudo generar el CV. Inténtalo de nuevo.';msg.style.color='#b42318';
