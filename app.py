@@ -1,5 +1,7 @@
 import os, sqlite3, secrets
+from datetime import datetime, timedelta, timezone
 from flask import Flask, request, jsonify, send_from_directory, session
+from werkzeug.security import generate_password_hash, check_password_hash
 
 app=Flask(__name__,static_folder=".")
 app.secret_key=os.getenv("CVGO_SESSION_SECRET",secrets.token_hex(32))
@@ -7,87 +9,109 @@ DB=os.getenv("CVGO_DB","cvgo.db")
 SK=os.getenv("STRIPE_SECRET_KEY","").strip()
 PRICE=os.getenv("STRIPE_PRICE_ID","").strip()
 WHSEC=os.getenv("STRIPE_WEBHOOK_SECRET","").strip()
+TRIAL_DAYS=7
 
 def conn():
     c=sqlite3.connect(DB); c.row_factory=sqlite3.Row; return c
 
 def init_db():
     c=conn()
-    c.execute("CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY AUTOINCREMENT,email TEXT UNIQUE NOT NULL,created_at TEXT DEFAULT CURRENT_TIMESTAMP)")
+    c.execute("CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY AUTOINCREMENT,email TEXT UNIQUE NOT NULL,password_hash TEXT NOT NULL,trial_started_at TEXT NOT NULL,created_at TEXT DEFAULT CURRENT_TIMESTAMP)")
     c.execute("""CREATE TABLE IF NOT EXISTS purchases(
       id INTEGER PRIMARY KEY AUTOINCREMENT,user_id INTEGER NOT NULL,stripe_session_id TEXT UNIQUE NOT NULL,
       payment_intent TEXT,amount INTEGER,currency TEXT,status TEXT NOT NULL,created_at TEXT DEFAULT CURRENT_TIMESTAMP,
       FOREIGN KEY(user_id) REFERENCES users(id))""")
     c.commit(); c.close()
 
+def now(): return datetime.now(timezone.utc)
+def parse_dt(v): return datetime.fromisoformat(v.replace('Z','+00:00'))
+def trial_info(user):
+    start=parse_dt(user['trial_started_at']); end=start+timedelta(days=TRIAL_DAYS); seconds=max(0,(end-now()).total_seconds())
+    return seconds>0, end, max(0,int(seconds//86400)+(1 if seconds%86400 else 0))
+
+def current_user():
+    uid=session.get('user_id')
+    if not uid:return None
+    c=conn();u=c.execute('SELECT * FROM users WHERE id=?',(uid,)).fetchone();c.close();return u
+
+def is_pro_user(user):
+    if not user:return False
+    active,_,_=trial_info(user)
+    if active:return True
+    c=conn();row=c.execute("SELECT 1 FROM purchases WHERE user_id=? AND status='paid' LIMIT 1",(user['id'],)).fetchone();c.close();return bool(row)
+
 def stripe():
     if not SK:return None
     import stripe; stripe.api_key=SK; return stripe
 
 def save_paid(s):
-    email=((s.get("customer_details") or {}).get("email") or s.get("customer_email") or "").strip().lower()
-    sid=s.get("id")
+    email=((s.get('customer_details') or {}).get('email') or s.get('customer_email') or '').strip().lower();sid=s.get('id')
     if not email or not sid:return False
-    c=conn(); c.execute("INSERT OR IGNORE INTO users(email) VALUES(?)",(email,))
-    uid=c.execute("SELECT id FROM users WHERE email=?",(email,)).fetchone()["id"]
-    c.execute("""INSERT OR IGNORE INTO purchases(user_id,stripe_session_id,payment_intent,amount,currency,status)
-                 VALUES(?,?,?,?,?,?)""",(uid,sid,s.get("payment_intent"),s.get("amount_total"),s.get("currency"),"paid"))
-    c.commit(); c.close(); return True
+    c=conn();u=c.execute('SELECT id FROM users WHERE email=?',(email,)).fetchone()
+    if not u:
+        start=now().isoformat();c.execute('INSERT INTO users(email,password_hash,trial_started_at) VALUES(?,?,?)',(email,generate_password_hash(secrets.token_urlsafe(24)),start));u=c.execute('SELECT id FROM users WHERE email=?',(email,)).fetchone()
+    c.execute("INSERT OR IGNORE INTO purchases(user_id,stripe_session_id,payment_intent,amount,currency,status) VALUES(?,?,?,?,?,?)",(u['id'],sid,s.get('payment_intent'),s.get('amount_total'),s.get('currency'),'paid'))
+    c.commit();c.close();return True
 
-@app.get("/")
-def home():return send_from_directory(".","index.html")
+@app.get('/')
+def home():return send_from_directory('.', 'index.html')
 
-@app.post("/api/create-checkout")
+@app.post('/api/register')
+def register():
+    data=request.get_json(silent=True) or {};email=data.get('email','').strip().lower();password=data.get('password','')
+    if '@' not in email:return jsonify(ok=False,error='INVALID_EMAIL'),400
+    if len(password)<6:return jsonify(ok=False,error='PASSWORD_TOO_SHORT'),400
+    c=conn()
+    if c.execute('SELECT 1 FROM users WHERE email=?',(email,)).fetchone():c.close();return jsonify(ok=False,error='EMAIL_EXISTS'),409
+    start=now().isoformat();c.execute('INSERT INTO users(email,password_hash,trial_started_at) VALUES(?,?,?)',(email,generate_password_hash(password),start));uid=c.execute('SELECT id FROM users WHERE email=?',(email,)).fetchone()['id'];c.commit();c.close();session['user_id']=uid
+    return jsonify(ok=True,email=email,trial_days=TRIAL_DAYS)
+
+@app.post('/api/login')
+def login():
+    data=request.get_json(silent=True) or {};email=data.get('email','').strip().lower();password=data.get('password','');c=conn();u=c.execute('SELECT * FROM users WHERE email=?',(email,)).fetchone();c.close()
+    if not u or not check_password_hash(u['password_hash'],password):return jsonify(ok=False,error='INVALID_LOGIN'),401
+    session['user_id']=u['id'];active,end,days=trial_info(u);return jsonify(ok=True,email=email,trial_active=active,trial_days_left=days,pro=is_pro_user(u))
+
+@app.post('/api/logout')
+def logout():session.clear();return jsonify(ok=True)
+
+@app.get('/api/me')
+def me():
+    u=current_user()
+    if not u:return jsonify(logged_in=False,pro=False)
+    active,end,days=trial_info(u);return jsonify(logged_in=True,email=u['email'],trial_active=active,trial_days_left=days,trial_ends_at=end.isoformat(),pro=is_pro_user(u))
+
+@app.post('/api/create-checkout')
 def checkout():
-    st=stripe()
-    if not st or not PRICE:return jsonify(ok=False,error="STRIPE_NOT_CONFIGURED"),503
-    email=(request.get_json(silent=True) or {}).get("email","").strip().lower()
-    if "@" not in email:return jsonify(ok=False,error="INVALID_EMAIL"),400
-    s=st.checkout.Session.create(mode="payment",customer_email=email,
-      line_items=[{"price":PRICE,"quantity":1}],
-      success_url=os.getenv("CVGO_SUCCESS_URL","http://localhost:5000/?session_id={CHECKOUT_SESSION_ID}"),
-      cancel_url=os.getenv("CVGO_CANCEL_URL","http://localhost:5000/?cancelled=1"),
-      metadata={"product":"cvgo_pro"})
+    st=stripe();u=current_user()
+    if not u:return jsonify(ok=False,error='LOGIN_REQUIRED'),401
+    if not st or not PRICE:return jsonify(ok=False,error='STRIPE_NOT_CONFIGURED'),503
+    s=st.checkout.Session.create(mode='subscription',customer_email=u['email'],line_items=[{'price':PRICE,'quantity':1}],success_url=os.getenv('CVGO_SUCCESS_URL','http://localhost:5000/?paid=1'),cancel_url=os.getenv('CVGO_CANCEL_URL','http://localhost:5000/?cancelled=1'),metadata={'product':'cvgo_pro','user_id':str(u['id'])})
     return jsonify(ok=True,url=s.url)
 
-@app.post("/api/stripe-webhook")
+@app.post('/api/stripe-webhook')
 def webhook():
     st=stripe()
-    if not st or not WHSEC:return "Webhook not configured",503
-    try:e=st.Webhook.construct_event(request.data,request.headers.get("Stripe-Signature",""),WHSEC)
-    except Exception:return "Invalid signature",400
-    if e["type"]=="checkout.session.completed":
-        s=e["data"]["object"]
-        if s.get("payment_status")=="paid":save_paid(s)
-    return "",200
+    if not st or not WHSEC:return 'Webhook not configured',503
+    try:e=st.Webhook.construct_event(request.data,request.headers.get('Stripe-Signature',''),WHSEC)
+    except Exception:return 'Invalid signature',400
+    if e['type'] in ('checkout.session.completed','invoice.paid'):
+        s=e['data']['object'];
+        if e['type']=='checkout.session.completed' and s.get('payment_status')=='paid':save_paid(s)
+        elif e['type']=='invoice.paid':
+            email=(s.get('customer_email') or '').strip().lower()
+            c=conn();u=c.execute('SELECT id FROM users WHERE email=?',(email,)).fetchone()
+            if u:c.execute("UPDATE purchases SET status='paid' WHERE user_id=?",(u['id'],))
+            c.commit();c.close()
+    return '',200
 
-@app.get("/api/verify-session")
+@app.get('/api/verify-session')
 def verify():
-    st=stripe(); sid=request.args.get("session_id","")
-    if not st or not sid:return jsonify(ok=False,pro=False),400
-    try:
-        s=st.checkout.Session.retrieve(sid)
-        if s.get("payment_status")!="paid":return jsonify(ok=True,pro=False)
-        save_paid(s)
-        email=((s.get("customer_details") or {}).get("email") or s.get("customer_email") or "").lower()
-        c=conn(); row=c.execute("""SELECT 1 FROM purchases p JOIN users u ON u.id=p.user_id
-          WHERE u.email=? AND p.stripe_session_id=? AND p.status='paid'""",(email,sid)).fetchone(); c.close()
-        if row:session["pro_email"]=email;return jsonify(ok=True,pro=True,email=email)
-    except Exception:pass
-    return jsonify(ok=True,pro=False)
+    u=current_user();return jsonify(ok=True,pro=is_pro_user(u))
 
-@app.get("/api/me")
-def me():
-    email=session.get("pro_email")
-    if not email:return jsonify(pro=False)
-    c=conn(); row=c.execute("""SELECT 1 FROM purchases p JOIN users u ON u.id=p.user_id
-      WHERE u.email=? AND p.status='paid' LIMIT 1""",(email,)).fetchone(); c.close()
-    return jsonify(pro=bool(row),email=email)
-
-@app.get("/api/health")
+@app.get('/api/health')
 def health():
-    c=conn();u=c.execute("SELECT COUNT(*) n FROM users").fetchone()["n"];p=c.execute("SELECT COUNT(*) n FROM purchases WHERE status='paid'").fetchone()["n"];c.close()
-    return jsonify(status="ok",stripe_configured=bool(SK and PRICE),users=u,paid_purchases=p)
+    c=conn();u=c.execute('SELECT COUNT(*) n FROM users').fetchone()['n'];p=c.execute("SELECT COUNT(*) n FROM purchases WHERE status='paid'").fetchone()['n'];c.close();return jsonify(status='ok',stripe_configured=bool(SK and PRICE),users=u,paid_purchases=p)
 
 init_db()
-if __name__=="__main__":app.run(host="0.0.0.0",port=int(os.getenv("PORT","5000")))
+if __name__=='__main__':app.run(host='0.0.0.0',port=int(os.getenv('PORT','5000')))
