@@ -36,6 +36,12 @@
   function scheduleSave(){clearTimeout(timer);timer=setTimeout(()=>save(),700)}
   function setSaveStatus(text){const s=$('cvgoSaveStatus');if(s){s.textContent=text;clearTimeout(s._t);s._t=setTimeout(()=>s.textContent='',2500)}}
   function addControls(){
+    const auth=$('auth');
+    if(auth && !auth.classList.contains('hidden')){
+      const oldLogout=$('cvgoLogoutBtn');
+      if(oldLogout)oldLogout.remove();
+      return;
+    }
     if($('cvgoSaveBtn'))return;
     const actions=document.querySelector('.actions');
     if(actions){const b=document.createElement('button');b.id='cvgoSaveBtn';b.type='button';b.textContent='💾 Guardar CV';b.onclick=async()=>{b.disabled=true;const ok=await save();b.disabled=false;if(ok)setSaveStatus('✓ CV guardado correctamente')};actions.insertBefore(b,actions.firstChild);const s=document.createElement('span');s.id='cvgoSaveStatus';s.style.cssText='align-self:center;font-size:12px;color:#067647;min-width:120px;text-align:center';actions.appendChild(s)}
@@ -46,8 +52,8 @@
   window.addEventListener('beforeunload',()=>{try{navigator.sendBeacon('/api/cv',new Blob([JSON.stringify(read())],{type:'application/json'}))}catch(e){}});
   window.cvgoServerSave=save;
   const original=window.loadUser;
-  if(typeof original==='function')window.loadUser=async function(){const result=await original.apply(this,arguments);const m=await fetch('/api/me',{credentials:'same-origin'}).then(x=>x.json()).catch(()=>({}));if(m.logged_in){try{sessionStorage.setItem('cvgo_user_email',m.email||'')}catch(e){}addControls();await load()}return result};
-  setTimeout(()=>{addControls();fetch('/api/me',{credentials:'same-origin'}).then(x=>x.json()).then(async u=>{if(u.logged_in){try{sessionStorage.setItem('cvgo_user_email',u.email||'')}catch(e){}addControls();await load()}}).catch(()=>{})},600);
+  if(typeof original==='function')window.loadUser=async function(){const result=await original.apply(this,arguments);const m=await fetch('/api/me',{credentials:'same-origin'}).then(x=>x.json()).catch(()=>({}));if(m.logged_in){try{sessionStorage.setItem('cvgo_user_email',m.email||'')}catch(e){}addControls();await load()}else{const b=$('cvgoLogoutBtn');if(b)b.remove()}return result};
+  setTimeout(()=>{fetch('/api/me',{credentials:'same-origin'}).then(x=>x.json()).then(async u=>{if(u.logged_in){try{sessionStorage.setItem('cvgo_user_email',u.email||'')}catch(e){}addControls();await load()}else{const b=$('cvgoLogoutBtn');if(b)b.remove();addControls()}}).catch(()=>{const b=$('cvgoLogoutBtn');if(b)b.remove()})},600);
 
   function escATS(s){return String(s||'').replace(/[&<>\"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#039;'}[m]))}
   function atsProfile(){
@@ -76,14 +82,11 @@
   };
 })();
 
-// Load the real AI interview simulator after the persistence/ATS code is ready.
 (function(){
   if(document.getElementById('cvgoInterviewScript')) return;
   const s=document.createElement('script');
   s.id='cvgoInterviewScript';
   s.src='/interview.js?v=1';
   s.defer=true;
-  s.onload=()=>console.log('CVGO interview simulator loaded');
-  s.onerror=()=>console.error('CVGO interview simulator failed to load');
   document.head.appendChild(s);
 })();
