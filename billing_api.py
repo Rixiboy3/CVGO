@@ -144,17 +144,47 @@ def register_billing(app):
             return app_module.jsonify(ok=False, error='STRIPE_ANNUAL_PRICE_NOT_CONFIGURED' if plan == 'annual' else 'STRIPE_NOT_CONFIGURED'), 503
         if real_is_pro(user):
             return app_module.jsonify(ok=False, error='ALREADY_PRO'), 409
-        s = st.checkout.Session.create(
-            mode='subscription',
-            customer_email=user['email'],
-            line_items=[{'price': price, 'quantity': 1}],
-            success_url=os.getenv('CVGO_SUCCESS_URL', 'https://cvgo.onrender.com/?paid=1'),
-            cancel_url=os.getenv('CVGO_CANCEL_URL', 'https://cvgo.onrender.com/?cancelled=1'),
-            allow_promotion_codes=True,
-            metadata={'product': 'cvgo_pro', 'user_id': str(user['id']), 'plan': plan},
-            subscription_data={'metadata': {'product': 'cvgo_pro', 'user_id': str(user['id']), 'plan': plan}},
-        )
+        base_success = os.getenv('CVGO_SUCCESS_URL', 'https://cvgo.onrender.com/?paid=1')
+        joiner = '&' if '?' in base_success else '?'
+        success_url = base_success + joiner + 'session_id={CHECKOUT_SESSION_ID}'
+        cancel_url = os.getenv('CVGO_CANCEL_URL', 'https://cvgo.onrender.com/?cancelled=1')
+        try:
+            s = st.checkout.Session.create(
+                mode='subscription',
+                customer_email=user['email'],
+                line_items=[{'price': price, 'quantity': 1}],
+                success_url=success_url,
+                cancel_url=cancel_url,
+                allow_promotion_codes=True,
+                metadata={'product': 'cvgo_pro', 'user_id': str(user['id']), 'plan': plan},
+                subscription_data={'metadata': {'product': 'cvgo_pro', 'user_id': str(user['id']), 'plan': plan}},
+            )
+        except Exception as e:
+            return app_module.jsonify(ok=False, error='STRIPE_CHECKOUT_FAILED', detail=str(e)[:300]), 502
         return app_module.jsonify(ok=True, url=s.url)
+
+    @app.get('/api/checkout-success')
+    def checkout_success():
+        st = stripe_client()
+        user = app_module.current_user()
+        session_id = str(app_module.request.args.get('session_id') or '').strip()
+        if not user:
+            return app_module.jsonify(ok=False, error='LOGIN_REQUIRED'), 401
+        if not st or not session_id:
+            return app_module.jsonify(ok=False, error='SESSION_REQUIRED'), 400
+        try:
+            checkout_session = st.checkout.Session.retrieve(session_id)
+            metadata = checkout_session.get('metadata') or {}
+            if str(metadata.get('user_id') or '') != str(user['id']):
+                return app_module.jsonify(ok=False, error='SESSION_USER_MISMATCH'), 403
+            if checkout_session.get('payment_status') not in ('paid', 'no_payment_required'):
+                return app_module.jsonify(ok=False, error='PAYMENT_NOT_CONFIRMED'), 409
+            saved = save_subscription(checkout_session)
+            if not saved:
+                return app_module.jsonify(ok=False, error='SUBSCRIPTION_NOT_SAVED'), 502
+            return app_module.jsonify(ok=True, pro=real_is_pro(user), billing=billing_state(user))
+        except Exception as e:
+            return app_module.jsonify(ok=False, error='CHECKOUT_VERIFY_FAILED', detail=str(e)[:300]), 502
 
     @app.get('/api/billing')
     def billing():
@@ -193,18 +223,19 @@ def register_billing(app):
             return 'Invalid signature', 400
         typ = event.get('type')
         obj = event.get('data', {}).get('object', {})
-        if typ == 'checkout.session.completed':
-            save_subscription(obj)
-        elif typ == 'invoice.paid':
-            sub_id = obj.get('subscription')
-            if sub_id:
-                try:
+        try:
+            if typ == 'checkout.session.completed':
+                if obj.get('payment_status') in ('paid', 'no_payment_required'):
+                    save_subscription(obj)
+            elif typ == 'invoice.paid':
+                sub_id = obj.get('subscription')
+                if sub_id:
                     sub = st.Subscription.retrieve(sub_id)
                     update_subscription(sub, obj.get('customer_email') or '')
-                except Exception:
-                    pass
-        elif typ in ('customer.subscription.updated', 'customer.subscription.deleted'):
-            update_subscription(obj)
+            elif typ in ('customer.subscription.updated', 'customer.subscription.deleted'):
+                update_subscription(obj)
+        except Exception:
+            return '', 200
         return '', 200
 
     # Replace legacy handlers so the existing Stripe URLs keep working.
