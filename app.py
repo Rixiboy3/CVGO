@@ -1,4 +1,4 @@
-import os, sqlite3, secrets, json
+import os, sqlite3, secrets, json, re
 from datetime import datetime, timedelta, timezone
 from flask import Flask, request, jsonify, send_from_directory, session, Response
 from werkzeug.security import generate_password_hash, check_password_hash
@@ -133,34 +133,33 @@ REQUISITOS DEL JSON:
         client=OpenAI(api_key=OPENAI_KEY)
         r=client.responses.create(model=OPENAI_MODEL,input=prompt)
         text=(getattr(r,'output_text','') or '').strip()
-        if text.startswith('```'): text=text.replace('```json','',1).replace('```','').strip()
-        result=json.loads(text)
+        if text.startswith('```'):
+            text=re.sub(r'^```(?:json)?\s*','',text,flags=re.I)
+            text=re.sub(r'\s*```$','',text).strip()
+        try:
+            result=json.loads(text)
+        except json.JSONDecodeError:
+            match=re.search(r'\{[\s\S]*\}',text)
+            if not match: raise
+            result=json.loads(match.group(0))
+        if not isinstance(result,dict): raise ValueError('AI response is not a JSON object')
 
-        # Safety layer: never allow the model to create, duplicate or alter job history.
         safe_experiences=[]
         returned=result.get('experiences') or []
         for i, original in enumerate(experience):
             ai_exp=returned[i] if i < len(returned) and isinstance(returned[i],dict) else {}
             original=dict(original) if isinstance(original,dict) else {}
             description=str(ai_exp.get('description','')).strip() or str(original.get('description','')).strip()
-            safe_experiences.append({
-                'position':str(original.get('position','')).strip(),
-                'company':str(original.get('company','')).strip(),
-                'dates':str(original.get('dates','')).strip(),
-                'description':description
-            })
+            safe_experiences.append({'position':str(original.get('position','')).strip(),'company':str(original.get('company','')).strip(),'dates':str(original.get('dates','')).strip(),'description':description})
         result['experiences']=safe_experiences
 
-        # Skills are also restricted to the candidate's existing skills.
         original_skills=[s.strip() for s in str(profile.get('skills','')).split(',') if s.strip()]
         ai_skills=[str(s).strip() for s in (result.get('skills') or []) if str(s).strip()]
         if original_skills:
-            result['skills']=[s for s in ai_skills if s.lower() in {x.lower() for x in original_skills}]
-            if not result['skills']:
-                result['skills']=original_skills
+            allowed={x.lower() for x in original_skills}
+            result['skills']=[s for s in ai_skills if s.lower() in allowed] or original_skills
         else:
             result['skills']=[]
-
         return jsonify(ok=True,result=result,model=OPENAI_MODEL)
     except json.JSONDecodeError:return jsonify(ok=False,error='AI_INVALID_RESPONSE'),502
     except Exception as e:return jsonify(ok=False,error='AI_REQUEST_FAILED',detail=str(e)[:300]),502
