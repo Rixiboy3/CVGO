@@ -141,7 +141,7 @@ RESPUESTA DEL CANDIDATO:
             if '/printfix.js' not in body:
                 body = body.replace('</body>', '<script src="/printfix.js?v=2"></script></body>')
             if '/cvgo_stylefix.js' not in body:
-                body = body.replace('</body>', '<script src="/cvgo_stylefix.js?v=1"></script></body>')
+                body = body.replace('</body>', '<script src="/cvgo_stylefix.js?v=2"></script></body>')
             response.set_data(body)
             response.headers.pop('Content-Length', None)
             return response
