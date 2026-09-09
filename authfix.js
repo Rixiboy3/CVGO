@@ -9,6 +9,9 @@
       body:has(#auth:not(.hidden)) header{height:78px;padding:0 5%;background:rgba(8,20,38,.98);border-bottom:1px solid #1d3150;box-shadow:0 4px 20px rgba(16,24,40,.08)}
       body:has(#auth:not(.hidden)) header .logo{font-size:30px;letter-spacing:-1.2px;font-weight:950}
       body:has(#auth:not(.hidden)) header span{color:#c8d5e8;font-size:13px}
+      body:has(#auth:not(.hidden)) #headerStatus{visibility:hidden}
+      body:has(#auth:not(.hidden)) #headerLogout{display:none!important}
+      body:has(#auth:not(.hidden)) #logoutBtn{display:none!important}
       .auth{max-width:1240px;margin:0 auto;padding:54px 42px 48px;display:grid;grid-template-columns:minmax(0,1fr) 470px;gap:72px;align-items:center;min-height:calc(100vh - 78px)}
       .auth:before{content:'';display:block;position:absolute;inset:78px 50% 0 0;background:radial-gradient(circle at 55% 48%,rgba(59,130,246,.10),transparent 48%);pointer-events:none}
       .auth .card{position:relative;z-index:2;max-width:none;width:auto;margin:0;padding:42px 40px 34px;border-radius:24px;border:1px solid rgba(208,213,221,.78);background:rgba(255,255,255,.96);box-shadow:0 28px 80px rgba(16,24,40,.13);overflow:hidden}
@@ -47,81 +50,18 @@
     `;
     document.head.appendChild(s);
   }
-
   function addMarketing(){
-    const auth=document.getElementById('auth');
-    if(!auth || auth.querySelector('.cvgo-marketing')) return;
-    const panel=document.createElement('section');
-    panel.className='cvgo-marketing';
-    panel.innerHTML=`<div class="cvgo-eyebrow">CV + IA + ATS + ENTREVISTA</div>
-      <h2>Un CV profesional para nuevas <span>oportunidades.</span></h2>
-      <p class="cvgo-lead">Crea, optimiza y personaliza tu CV con inteligencia artificial. Destaca tus competencias y presenta tu experiencia de forma profesional.</p>
-      <div class="cvgo-features">
-        <div class="cvgo-feature"><div class="cvgo-icon">▤</div><div><strong>Diseños profesionales</strong><small>Plantillas modernas y personalizables</small></div></div>
-        <div class="cvgo-feature"><div class="cvgo-icon">✦</div><div><strong>Optimización ATS con IA</strong><small>Mejora la compatibilidad con los procesos de selección</small></div></div>
-        <div class="cvgo-feature"><div class="cvgo-icon">◎</div><div><strong>Adaptado a cada oferta</strong><small>Personaliza tu CV en segundos</small></div></div>
-        <div class="cvgo-feature"><div class="cvgo-icon">♙</div><div><strong>Simulador de entrevistas</strong><small>Practica y gana confianza antes de la entrevista</small></div></div>
-      </div>
-      <div class="cvgo-trial"><div class="cvgo-trial-icon">🎁</div><div><strong>7 días gratis · Sin compromiso</strong><span>Acceso completo. Después, desde 9,99 €/mes.</span></div></div>
-      <button type="button" class="cvgo-hero-cta" id="cvgoHeroCta">Empezar gratis →</button><span class="cvgo-price-note">No se cobra durante la prueba</span>`;
+    const auth=document.getElementById('auth'); if(!auth||auth.querySelector('.cvgo-marketing'))return;
+    const panel=document.createElement('section'); panel.className='cvgo-marketing';
+    panel.innerHTML=`<div class="cvgo-eyebrow">CV + IA + ATS + ENTREVISTA</div><h2>Un CV profesional para nuevas <span>oportunidades.</span></h2><p class="cvgo-lead">Crea, optimiza y personaliza tu CV con inteligencia artificial. Destaca tus competencias y presenta tu experiencia de forma profesional.</p><div class="cvgo-features"><div class="cvgo-feature"><div class="cvgo-icon">▤</div><div><strong>Diseños profesionales</strong><small>Plantillas modernas y personalizables</small></div></div><div class="cvgo-feature"><div class="cvgo-icon">✦</div><div><strong>Optimización ATS con IA</strong><small>Mejora la compatibilidad con los procesos de selección</small></div></div><div class="cvgo-feature"><div class="cvgo-icon">◎</div><div><strong>Adaptado a cada oferta</strong><small>Personaliza tu CV en segundos</small></div></div><div class="cvgo-feature"><div class="cvgo-icon">♙</div><div><strong>Simulador de entrevistas</strong><small>Practica y gana confianza antes de la entrevista</small></div></div></div><div class="cvgo-trial"><div class="cvgo-trial-icon">🎁</div><div><strong>7 días gratis · Sin compromiso</strong><span>Acceso completo. Después, desde 9,99 €/mes.</span></div></div><button type="button" class="cvgo-hero-cta" id="cvgoHeroCta">Empezar gratis →</button><span class="cvgo-price-note">No se cobra durante la prueba</span>`;
     auth.prepend(panel);
-    const cta=document.getElementById('cvgoHeroCta');
-    if(cta)cta.onclick=()=>{
-      if(typeof authMode!=='undefined')authMode='register';
-      if(typeof applyAuthLabels==='function')applyAuthLabels();
-      const email=document.getElementById('authEmail'),pass=document.getElementById('authPass');
-      if(email)email.value=''; if(pass)pass.value=''; if(email)email.focus();
-    };
+    const cta=document.getElementById('cvgoHeroCta'); if(cta)cta.onclick=()=>{if(typeof authMode!=='undefined')authMode='register';if(typeof applyAuthLabels==='function')applyAuthLabels();const email=document.getElementById('authEmail'),pass=document.getElementById('authPass');if(email)email.value='';if(pass)pass.value='';if(email)email.focus()};
   }
-
   function applyAuthLabels(){
-    if(typeof authMode === 'undefined') return;
-    const title=document.getElementById('authTitle'), text=document.getElementById('authText'), btn=document.getElementById('authBtn');
-    const switchText=document.getElementById('switchText'), switchBtn=document.getElementById('switchBtn'), trial=document.querySelector('#auth .trial');
-    if(!title||!text||!btn||!switchText||!switchBtn) return;
-    if(authMode==='login'){
-      title.textContent='Bienvenido de nuevo';
-      text.textContent='Inicia sesión en tu cuenta de CVGO y continúa trabajando en tus CV.';
-      btn.textContent='Iniciar sesión →';
-      switchText.textContent='¿Aún no tienes cuenta?';
-      switchBtn.textContent='Crear cuenta gratis →';
-      if(trial) trial.style.display='none';
-    }else{
-      title.textContent='Crea tu cuenta';
-      text.textContent='Prueba todas las funciones de CVGO durante 7 días.';
-      btn.textContent='Crear mi cuenta →';
-      switchText.textContent='¿Ya tienes cuenta?';
-      switchBtn.textContent='Iniciar sesión';
-      if(trial) trial.style.display='block';
-    }
+    if(typeof authMode==='undefined')return; const title=document.getElementById('authTitle'),text=document.getElementById('authText'),btn=document.getElementById('authBtn');const switchText=document.getElementById('switchText'),switchBtn=document.getElementById('switchBtn'),trial=document.querySelector('#auth .trial');if(!title||!text||!btn||!switchText||!switchBtn)return;
+    if(authMode==='login'){title.textContent='Bienvenido de nuevo';text.textContent='Inicia sesión en tu cuenta de CVGO y continúa trabajando en tus CV.';btn.textContent='Iniciar sesión →';switchText.textContent='¿Aún no tienes cuenta?';switchBtn.textContent='Crear cuenta gratis →';if(trial)trial.style.display='none'}else{title.textContent='Crea tu cuenta';text.textContent='Prueba todas las funciones de CVGO durante 7 días.';btn.textContent='Crear mi cuenta →';switchText.textContent='¿Ya tienes cuenta?';switchBtn.textContent='Iniciar sesión';if(trial)trial.style.display='block'}
   }
-
-  function addBrand(){
-    const card=document.querySelector('#auth .card');
-    if(card && !card.querySelector('.auth-brand')){
-      const brand=document.createElement('div'); brand.className='auth-brand';
-      brand.innerHTML='<div class="auth-mark">CVGO</div>';
-      card.prepend(brand);
-    }
-  }
-
-  function init(){
-    style(); addMarketing(); addBrand();
-    if(typeof authMode !== 'undefined'){
-      authMode='login'; applyAuthLabels();
-      const originalToggle=window.toggleAuth;
-      if(typeof originalToggle==='function' && !originalToggle.__cvgoWrapped){
-        function wrappedToggle(){
-          const toRegister=(typeof authMode!=='undefined' && authMode==='login');
-          originalToggle(); applyAuthLabels();
-          if(toRegister){
-            const email=document.getElementById('authEmail'), pass=document.getElementById('authPass');
-            if(email) email.value=''; if(pass) pass.value=''; if(email) email.focus();
-          }
-        }
-        wrappedToggle.__cvgoWrapped=true; window.toggleAuth=wrappedToggle;
-      }
-    }
-  }
-  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',init); else init();
+  function addBrand(){const card=document.querySelector('#auth .card');if(card&&!card.querySelector('.auth-brand')){const brand=document.createElement('div');brand.className='auth-brand';brand.innerHTML='<div class="auth-mark">CVGO</div>';card.prepend(brand)}}
+  function init(){style();addMarketing();addBrand();if(typeof authMode!=='undefined'){authMode='login';applyAuthLabels();const originalToggle=window.toggleAuth;if(typeof originalToggle==='function'&&!originalToggle.__cvgoWrapped){function wrappedToggle(){const toRegister=authMode==='login';originalToggle();applyAuthLabels();if(toRegister){const email=document.getElementById('authEmail'),pass=document.getElementById('authPass');if(email)email.value='';if(pass)pass.value='';if(email)email.focus()}}wrappedToggle.__cvgoWrapped=true;window.toggleAuth=wrappedToggle}}}
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();
