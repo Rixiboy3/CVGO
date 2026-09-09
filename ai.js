@@ -54,5 +54,52 @@ window.confirmApplyAICV=function(){
   window.scrollTo({top:0,behavior:'smooth'});
 };
 window.keepAICV=function(){const c=document.getElementById('aiChanges');if(c){c.innerHTML='<b>↩ CV original mantenido</b><p style="font-size:13px;margin:7px 0 0;color:#667085">No se ha modificado ningún dato de tu CV.</p>'}const m=document.getElementById('aiMsg');if(m){m.textContent='✓ Se ha mantenido tu CV original.';m.style.color='#067647'}};
+
+// ===================== ENTREVISTA JOB-SPECIFIC =====================
+function interviewProfile(){
+  const experience=[...document.querySelectorAll('#experience .item')].map(x=>({position:x.querySelector('.ep')?.value||'',company:x.querySelector('.ec')?.value||'',dates:(x.querySelector('.ef')?.value||'')+' - '+(x.querySelector('.et')?.value||''),description:x.querySelector('.ed')?.value||''})).filter(x=>x.position||x.company||x.description);
+  return {name:document.getElementById('name')?.value||'',role:document.getElementById('role')?.value||'',summary:document.getElementById('summary')?.value||'',skills:document.getElementById('skills')?.value||'',experience};
+}
+function interviewKeywords(text){
+  const stop=new Set('para como esta este esta los las una uno por con del que sus sobre desde entre hacia puede pueden será ser tener tiene experiencia años puesto empresa trabajo buscamos nuestro nuestra mediante según también donde cuando quien cada más muy profesional persona equipo'.split(' '));
+  const words=String(text||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'').match(/[a-z0-9][a-z0-9+.#/-]{2,}/g)||[];
+  const freq={};words.forEach(w=>{if(!stop.has(w))freq[w]=(freq[w]||0)+1});
+  return Object.entries(freq).sort((a,b)=>b[1]-a[1]).map(x=>x[0]).filter((x,i,a)=>a.indexOf(x)===i).slice(0,18);
+}
+function buildInterviewQuestions(offer,p){
+  const keys=interviewKeywords(offer);const cvText=[p.role,p.summary,p.skills,...p.experience.map(x=>x.position+' '+x.description)].join(' ').toLowerCase();
+  const relevant=p.experience.filter(x=>x.description||x.position).slice(0,2);
+  const expLabel=relevant[0]?(relevant[0].position+(relevant[0].company?' en '+relevant[0].company:'')):'tu experiencia más relevante';
+  const keyLabel=keys.slice(0,4).join(', ')||'los requisitos de la oferta';
+  return [
+    {type:'presentacion',q:'Háblame de ti y de tu trayectoria profesional.',look:'Un resumen de 45-60 segundos, orientado al puesto y no una repetición completa del CV.',highlight:p.role||'tu perfil profesional',avoid:'Empezar con datos personales irrelevantes o hacer un recorrido cronológico demasiado largo.'},
+    {type:'motivacion',q:'¿Por qué te interesa este puesto y por qué quieres trabajar con nosotros?',look:'Motivación concreta conectada con las funciones y necesidades de la oferta.',highlight:keyLabel,avoid:'Responder únicamente con “busco crecer” o “necesito un cambio”.'},
+    {type:'experiencia',q:`¿Qué experiencia tienes que te prepare mejor para este puesto?`,look:'Elegir un ejemplo real y explicar qué hacías, qué responsabilidad tenías y qué resultado aportabas.',highlight:expLabel,avoid:'Enumerar empresas sin explicar la relación con el puesto.'},
+    {type:'funciones',q:'Cuéntame cómo abordarías las principales responsabilidades de este puesto.',look:'Relacionar tu forma de trabajar con las funciones reales de la oferta.',highlight:keyLabel,avoid:'Afirmar experiencia que no aparece en tu CV.'},
+    {type:'fortaleza',q:'¿Cuál es tu principal fortaleza profesional para este puesto?',look:'Una fortaleza demostrable con un ejemplo breve.',highlight:p.skills||'una habilidad que ya aparezca en tu CV',avoid:'Usar adjetivos sin una situación real que los respalde.'},
+    {type:'debilidad',q:'¿Cuál es una debilidad profesional que estás trabajando?',look:'Una debilidad real, controlada y acompañada de una acción concreta de mejora.',highlight:'aprendizaje y mejora continua',avoid:'Decir “soy demasiado perfeccionista” sin explicar nada más.'},
+    {type:'situacional',q:'Imagina que empiezas mañana y recibes una situación difícil relacionada con el puesto. ¿Qué harías?',look:'Explicar un proceso: entender, priorizar, actuar, comunicar y comprobar el resultado.',highlight:'tu experiencia práctica',avoid:'Responder impulsivamente o prometer resultados sin conocer el contexto.'},
+    {type:'presion',q:'¿Por qué deberíamos contratarte frente a otros candidatos?',look:'Tres razones como máximo: experiencia relevante, capacidad demostrable y encaje con el puesto.',highlight:keyLabel,avoid:'Compararte negativamente con otros candidatos o inventar logros.'}
+  ];
+}
+function scoreInterviewAnswer(answer,offer,p,q){
+  const a=String(answer||'').trim();if(!a)return {score:0,label:'Sin respuesta',tips:['Escribe una respuesta de 45-90 segundos.']};
+  const low=a.toLowerCase();const cv=(p.role+' '+p.summary+' '+p.skills+' '+p.experience.map(x=>x.position+' '+x.description).join(' ')).toLowerCase();const keys=interviewKeywords(offer);let score=35;let hits=0;
+  keys.forEach(k=>{if(low.includes(k)){hits++;score+=3}});if(a.length>=120)score+=12;else if(a.length>=70)score+=8;else if(a.length>=40)score+=4;
+  if(/resultado|logr[eé]|consegu[ií]|mejor[eé]|aument|reduj|cliente|objetivo|ejemplo/.test(low))score+=12;
+  if(/porque|por qué|para|aprend|resolv|decid|prioriz|comuni/.test(low))score+=8;
+  const cvHits=(cv.match(/[a-záéíóúñ]{4,}/gi)||[]).filter(w=>low.includes(w.toLowerCase())).length;if(cvHits>2)score+=6;
+  score=Math.max(0,Math.min(100,score));let tips=[];if(a.length<70)tips.push('Hazla algo más concreta: 45-90 segundos.');if(hits===0)tips.push('Conecta la respuesta con algún requisito de la oferta.');if(!/resultado|logr[eé]|consegu[ií]|mejor[eé]|objetivo|ejemplo/.test(low))tips.push('Añade un ejemplo real o un resultado.');if(!/porque|por qué|para|resolv|decid|prioriz|comuni/.test(low))tips.push('Explica brevemente cómo actuaste, no solo qué hiciste.');if(!tips.length)tips.push('Buena base. Practica decirla de forma natural, sin memorizarla palabra por palabra.');
+  return {score,label:score>=80?'Respuesta fuerte':score>=65?'Respuesta correcta':'Necesita mejorar',tips};
+}
+window.evaluateInterviewAnswer=function(i){const p=interviewProfile(),offer=(document.getElementById('job')?.value||document.getElementById('aiJob')?.value||'').trim(),q=(window._cvgoInterview||[])[i],a=document.getElementById('intAnswer'+i)?.value||'';const r=scoreInterviewAnswer(a,offer,p,q);const el=document.getElementById('intEval'+i);if(el)el.innerHTML=`<div style="margin-top:8px;padding:10px;border-radius:8px;background:#f8fafc;border:1px solid #eaecf0"><b>${r.score}/100 · ${escAI(r.label)}</b><ul style="margin:6px 0 0 17px;font-size:12px;line-height:1.5">${r.tips.map(t=>`<li>${escAI(t)}</li>`).join('')}</ul></div>`};
+window.makeInterview=function(){
+  const out=document.getElementById('interviewOut');if(!out)return;const offer=(document.getElementById('job')?.value||document.getElementById('aiJob')?.value||'').trim();const p=interviewProfile();
+  if(offer.length<30){out.innerHTML='<div style="padding:13px;border-radius:10px;background:#fff7ed;border:1px solid #fed7aa;font-size:13px">⚠️ Para preparar una entrevista específica, primero pega la oferta de empleo en la pestaña <b>Carta</b> o en <b>Optimiza tu CV con IA</b>.</div>';return}
+  const qs=buildInterviewQuestions(offer,p);window._cvgoInterview=qs;const keys=interviewKeywords(offer).slice(0,10);
+  out.innerHTML=`<div style="border:1px solid #dbe4ee;border-radius:12px;background:#f8fafc;padding:15px"><div style="display:flex;justify-content:space-between;gap:10px;align-items:center;flex-wrap:wrap"><div><b style="font-size:16px">🎯 Entrevista adaptada a esta oferta</b><div style="font-size:12px;color:#667085;margin-top:4px">${qs.length} preguntas · preparación basada en la oferta y en tu CV</div></div><span style="font-size:12px;padding:5px 8px;background:#fff;border:1px solid #dbe4ee;border-radius:7px">${keys.length?'Claves: '+escAI(keys.join(' · ')):'Oferta detectada'}</span></div><div style="margin-top:13px">${qs.map((x,i)=>`<div style="background:#fff;border:1px solid #eaecf0;border-radius:10px;padding:13px;margin-top:10px"><div style="font-size:12px;color:#667085">Pregunta ${i+1} · ${escAI(x.type)}</div><b style="display:block;margin-top:4px;line-height:1.45">${escAI(x.q)}</b><div style="font-size:12px;margin-top:8px"><b>Qué busca el entrevistador:</b> ${escAI(x.look)}</div><div style="font-size:12px;margin-top:5px"><b>Qué destacar:</b> ${escAI(x.highlight)}</div><div style="font-size:12px;margin-top:5px;color:#b42318"><b>Evita:</b> ${escAI(x.avoid)}</div><textarea id="intAnswer${i}" placeholder="Escribe aquí tu respuesta para practicar..." style="width:100%;min-height:90px;margin-top:10px;border:1px solid #d0d5dd;border-radius:8px;padding:9px;resize:vertical"></textarea><button class="smallbtn" style="margin-top:7px" onclick="evaluateInterviewAnswer(${i})">Evaluar respuesta</button><div id="intEval${i}"></div></div>`).join('')}</div><div style="margin-top:14px;padding:11px;border-radius:9px;background:#fff;border:1px solid #dbe4ee;font-size:12px;line-height:1.5"><b>💡 Regla CVGO:</b> responde con hechos que puedas defender en entrevista. No inventes experiencia, herramientas, cifras ni logros que no aparezcan en tu CV.</div></div>`;
+  out.scrollIntoView({behavior:'smooth',block:'start'});
+};
+
 const start=setInterval(()=>{if(document.getElementById('cvTab')){addAIBox();clearInterval(start)}},300);
 })();
