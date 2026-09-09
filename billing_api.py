@@ -1,0 +1,232 @@
+import os
+from datetime import datetime, timezone
+
+
+def register_billing(app):
+    import app as app_module
+
+    def stripe_client():
+        if not app_module.SK:
+            return None
+        import stripe
+        stripe.api_key = app_module.SK
+        return stripe
+
+    def migrate():
+        cols = [
+            ('subscription_id', 'TEXT'),
+            ('stripe_customer_id', 'TEXT'),
+            ('plan', 'TEXT'),
+            ('subscription_status', 'TEXT'),
+            ('current_period_end', 'TEXT'),
+            ('cancel_at_period_end', 'INTEGER DEFAULT 0'),
+        ]
+        for name, typ in cols:
+            try:
+                app_module.db_execute(f'ALTER TABLE purchases ADD COLUMN {name} {typ}')
+            except Exception:
+                pass
+
+    migrate()
+
+    def find_user(user_id=None, email=''):
+        if user_id:
+            u = app_module.db_fetchone('SELECT * FROM users WHERE id=:id', {'id': user_id})
+            if u:
+                return u
+        if email:
+            return app_module.db_fetchone('SELECT * FROM users WHERE email=:email', {'email': email.lower()})
+        return None
+
+    def active_subscription(user):
+        if not user:
+            return None
+        return app_module.db_fetchone("""SELECT * FROM purchases
+          WHERE user_id=:uid AND status IN ('paid','active')
+          AND (subscription_status IS NULL OR subscription_status IN ('active','trialing'))
+          ORDER BY id DESC LIMIT 1""", {'uid': user['id']})
+
+    def billing_state(user):
+        if not user:
+            return {'active': False, 'plan': None, 'status': None, 'cancel_at_period_end': False, 'current_period_end': None}
+        trial_active, trial_end, _ = app_module.trial_info(user)
+        if trial_active:
+            return {'active': True, 'trial': True, 'plan': None, 'status': 'trialing', 'cancel_at_period_end': False, 'current_period_end': trial_end.isoformat()}
+        row = active_subscription(user)
+        if not row:
+            return {'active': False, 'trial': False, 'plan': None, 'status': None, 'cancel_at_period_end': False, 'current_period_end': None}
+        return {
+            'active': True,
+            'trial': False,
+            'plan': row.get('plan') or 'monthly',
+            'status': row.get('subscription_status') or row.get('status') or 'active',
+            'cancel_at_period_end': bool(row.get('cancel_at_period_end')),
+            'current_period_end': row.get('current_period_end'),
+        }
+
+    def real_is_pro(user):
+        if not user:
+            return False
+        trial_active, _, _ = app_module.trial_info(user)
+        if trial_active:
+            return True
+        return bool(active_subscription(user))
+
+    app_module.is_pro_user = real_is_pro
+
+    def save_subscription(session_obj):
+        email = ((session_obj.get('customer_details') or {}).get('email') or session_obj.get('customer_email') or '').strip().lower()
+        metadata = session_obj.get('metadata') or {}
+        user_id = metadata.get('user_id')
+        user = find_user(user_id=user_id, email=email)
+        if not user:
+            return False
+        sid = session_obj.get('id')
+        sub_id = session_obj.get('subscription')
+        customer_id = session_obj.get('customer')
+        plan = metadata.get('plan') or 'monthly'
+        if not sid:
+            return False
+        existing = app_module.db_fetchone('SELECT id FROM purchases WHERE stripe_session_id=:sid', {'sid': sid})
+        params = {
+            'uid': user['id'], 'sid': sid, 'pi': session_obj.get('payment_intent'),
+            'amount': session_obj.get('amount_total'), 'currency': session_obj.get('currency'),
+            'status': 'paid', 'subid': sub_id, 'customer': customer_id, 'plan': plan,
+        }
+        if existing:
+            app_module.db_execute("""UPDATE purchases SET user_id=:uid,payment_intent=:pi,amount=:amount,currency=:currency,
+              status=:status,subscription_id=:subid,stripe_customer_id=:customer,plan=:plan,
+              subscription_status='active' WHERE stripe_session_id=:sid""", params)
+        else:
+            app_module.db_execute("""INSERT INTO purchases(user_id,stripe_session_id,payment_intent,amount,currency,status,
+              subscription_id,stripe_customer_id,plan,subscription_status,cancel_at_period_end)
+              VALUES(:uid,:sid,:pi,:amount,:currency,:status,:subid,:customer,:plan,'active',0)""", params)
+        return True
+
+    def update_subscription(sub, fallback_email=''):
+        sub_id = sub.get('id')
+        if not sub_id:
+            return False
+        row = app_module.db_fetchone('SELECT id,user_id FROM purchases WHERE subscription_id=:sid ORDER BY id DESC LIMIT 1', {'sid': sub_id})
+        if not row and fallback_email:
+            u = find_user(email=fallback_email)
+            if u:
+                row = app_module.db_fetchone('SELECT id,user_id FROM purchases WHERE user_id=:uid ORDER BY id DESC LIMIT 1', {'uid': u['id']})
+        if not row:
+            return False
+        status = str(sub.get('status') or '').lower()
+        paid_status = 'paid' if status in ('active', 'trialing', 'past_due') else 'canceled'
+        period_end = sub.get('current_period_end')
+        period_text = datetime.fromtimestamp(period_end, timezone.utc).isoformat() if period_end else None
+        app_module.db_execute("""UPDATE purchases SET status=:status,subscription_status=:substatus,
+          current_period_end=:period_end,cancel_at_period_end=:cancel
+          WHERE id=:id""", {
+            'status': paid_status, 'substatus': status, 'period_end': period_text,
+            'cancel': 1 if sub.get('cancel_at_period_end') else 0, 'id': row['id']
+        })
+        return True
+
+    def replace(name, fn):
+        app.view_functions[name] = fn
+
+    @app.post('/api/create-checkout-v2')
+    def checkout_v2():
+        st = stripe_client()
+        user = app_module.current_user()
+        if not user:
+            return app_module.jsonify(ok=False, error='LOGIN_REQUIRED'), 401
+        if not st:
+            return app_module.jsonify(ok=False, error='STRIPE_NOT_CONFIGURED'), 503
+        d = app_module.request.get_json(silent=True) or {}
+        plan = str(d.get('plan') or 'monthly').lower()
+        price = app_module.PRICE if plan == 'monthly' else os.getenv('STRIPE_ANNUAL_PRICE_ID', '').strip()
+        if not price:
+            return app_module.jsonify(ok=False, error='STRIPE_ANNUAL_PRICE_NOT_CONFIGURED' if plan == 'annual' else 'STRIPE_NOT_CONFIGURED'), 503
+        if real_is_pro(user):
+            return app_module.jsonify(ok=False, error='ALREADY_PRO'), 409
+        s = st.checkout.Session.create(
+            mode='subscription',
+            customer_email=user['email'],
+            line_items=[{'price': price, 'quantity': 1}],
+            success_url=os.getenv('CVGO_SUCCESS_URL', 'http://localhost:5000/?paid=1'),
+            cancel_url=os.getenv('CVGO_CANCEL_URL', 'http://localhost:5000/?cancelled=1'),
+            allow_promotion_codes=True,
+            metadata={'product': 'cvgo_pro', 'user_id': str(user['id']), 'plan': plan},
+            subscription_data={'metadata': {'product': 'cvgo_pro', 'user_id': str(user['id']), 'plan': plan}},
+        )
+        return app_module.jsonify(ok=True, url=s.url)
+
+    @app.get('/api/billing')
+    def billing():
+        user = app_module.current_user()
+        if not user:
+            return app_module.jsonify(ok=False, error='LOGIN_REQUIRED'), 401
+        return app_module.jsonify(ok=True, **billing_state(user))
+
+    @app.post('/api/cancel-subscription')
+    def cancel_subscription():
+        st = stripe_client()
+        user = app_module.current_user()
+        if not user:
+            return app_module.jsonify(ok=False, error='LOGIN_REQUIRED'), 401
+        if not st:
+            return app_module.jsonify(ok=False, error='STRIPE_NOT_CONFIGURED'), 503
+        row = active_subscription(user)
+        if not row or not row.get('subscription_id'):
+            return app_module.jsonify(ok=False, error='NO_ACTIVE_SUBSCRIPTION'), 404
+        try:
+            sub = st.Subscription.modify(row['subscription_id'], cancel_at_period_end=True)
+            update_subscription(sub)
+            return app_module.jsonify(ok=True, **billing_state(user))
+        except Exception as e:
+            return app_module.jsonify(ok=False, error='CANCEL_FAILED', detail=str(e)[:250]), 502
+
+    @app.post('/api/stripe-webhook-v2')
+    def webhook_v2():
+        st = stripe_client()
+        secret = app_module.WHSEC
+        if not st or not secret:
+            return 'Webhook not configured', 503
+        try:
+            event = st.Webhook.construct_event(app_module.request.data, app_module.request.headers.get('Stripe-Signature', ''), secret)
+        except Exception:
+            return 'Invalid signature', 400
+        typ = event.get('type')
+        obj = event.get('data', {}).get('object', {})
+        if typ == 'checkout.session.completed':
+            save_subscription(obj)
+        elif typ == 'invoice.paid':
+            sub_id = obj.get('subscription')
+            if sub_id:
+                try:
+                    sub = st.Subscription.retrieve(sub_id)
+                    update_subscription(sub, obj.get('customer_email') or '')
+                except Exception:
+                    pass
+        elif typ in ('customer.subscription.updated', 'customer.subscription.deleted'):
+            update_subscription(obj)
+        return '', 200
+
+    # Replace legacy handlers so the existing Stripe URLs keep working.
+    replace('checkout', checkout_v2)
+    replace('webhook', webhook_v2)
+
+    original_me = app.view_functions.get('me')
+    if original_me:
+        def me_v2():
+            user = app_module.current_user()
+            if not user:
+                return app_module.jsonify(logged_in=False)
+            active, _, days = app_module.trial_info(user)
+            state = billing_state(user)
+            return app_module.jsonify(logged_in=True, email=user['email'], trial_active=active, trial_days_left=days, pro=real_is_pro(user), billing=state)
+        replace('me', me_v2)
+
+    original_verify = app.view_functions.get('verify')
+    if original_verify:
+        def verify_v2():
+            user = app_module.current_user()
+            return app_module.jsonify(ok=True, pro=real_is_pro(user), billing=billing_state(user))
+        replace('verify', verify_v2)
+
+register_billing(__import__('app').app)
