@@ -16,8 +16,6 @@
   #preview{display:block!important;width:210mm!important;margin:0!important;padding:0!important}
   .tm{width:210mm!important;min-width:210mm!important;max-width:210mm!important;min-height:297mm!important;height:auto!important;margin:0!important;padding:0!important;overflow:visible!important;box-shadow:none!important;transform:none!important;font-family:Arial,Helvetica,sans-serif!important}
   .tm *{box-sizing:border-box!important;max-width:100%!important}
-
-  /* Typography: more breathing room and a more premium A4 hierarchy */
   .tm h1{font-size:26pt!important;line-height:1.08!important;overflow-wrap:anywhere!important;word-break:break-word!important}
   .tm .role{font-size:11pt!important;line-height:1.35!important;overflow-wrap:anywhere!important;word-break:break-word!important;margin-top:4pt!important}
   .tm .contact,.tm .headerContact,.tm .sideContact{font-size:8.8pt!important;line-height:1.45!important;overflow-wrap:anywhere!important;word-break:break-word!important}
@@ -32,8 +30,6 @@
   .tm .skills{display:flex!important;flex-wrap:wrap!important;gap:6pt!important}
   .tm .skills span{font-size:8.5pt!important;line-height:1.2!important;padding:5pt 7pt!important;max-width:100%!important;overflow-wrap:anywhere!important;word-break:break-word!important}
   .tm .tp{max-width:none!important;flex:none!important}
-
-  /* Standard A4 margins */
   .tm.p1,.tm.p2,.tm.p4,.tm.n1,.tm.n2,.tm.n3,.tm.n4,.tm.c2,.tm.c3,.tm.c4,.tm.e2,.tm.e4{padding-left:16mm!important;padding-right:16mm!important}
   .tm.p1{padding-top:17mm!important;padding-bottom:14mm!important}
   .tm.p2{padding-top:15mm!important;padding-bottom:14mm!important}
@@ -41,19 +37,15 @@
   .tm.n1,.tm.n2,.tm.n3,.tm.n4{padding-top:17mm!important;padding-bottom:14mm!important}
   .tm.c2,.tm.c3,.tm.c4{padding-top:15mm!important;padding-bottom:14mm!important}
   .tm.e2,.tm.e4{padding-top:15mm!important;padding-bottom:14mm!important}
-
-  /* Lateral layouts */
   .tm.p3{grid-template-columns:58mm minmax(0,1fr)!important;min-height:297mm!important}
   .tm.p3 aside{padding:16mm 7mm!important}
   .tm.p3 main{padding:17mm 11mm 16mm!important}
   .tm.m1{grid-template-columns:58mm minmax(0,1fr)!important;min-height:297mm!important}
   .tm.m1 aside{padding:16mm 7mm!important}
   .tm.m1 main{padding:17mm 11mm 16mm!important}
-  .tm.m3{grid-template-columns:52mm minmax(0,1fr)!important;min-height:297mm!important}
+  .tm.m3{grid-template-columns:minmax(0,1fr) 58mm!important;min-height:297mm!important}
   .tm.m3 aside{padding:14mm 6mm!important}
   .tm.m3 main{padding:15mm 13mm 15mm!important}
-
-  /* Individual model rhythm */
   .tm.m2{min-height:297mm!important}
   .tm.m2 header{padding:16mm 16mm!important}
   .tm.m2 main{padding:13mm 16mm 16mm!important}
@@ -79,11 +71,12 @@
   .tm.e4 header{grid-template-columns:24mm minmax(0,1fr) minmax(35mm,50mm)!important;gap:5mm!important;padding:13mm 13mm 7mm!important}
   .tm.e4 main{padding:10mm 13mm 16mm!important}
 
-  /* Restore CV headers while hiding only the application chrome */
-  .tm.p1 header,.tm.p2 header,.tm.p4 header,.tm.m2 header,.tm.m3 header,.tm.m4 header,.tm.n1 header,.tm.n3 header,.tm.n4 header,.tm.c1 header,.tm.c2 header,.tm.c3 header,.tm.e1 header,.tm.e2 header,.tm.e3 header,.tm.e4 header{display:flex!important}
+  /* Standard templates: restore their actual CV header for print. Lateral templates use only their sidePanel. */
+  .tm.p1 header,.tm.p2 header,.tm.p4 header,.tm.m2 header,.tm.m4 header,.tm.n1 header,.tm.n3 header,.tm.n4 header,.tm.c1 header,.tm.c2 header,.tm.c3 header,.tm.e1 header,.tm.e2 header,.tm.e3 header,.tm.e4 header{display:flex!important}
   .tm.e4 header{display:grid!important}
   .tm.n2 header,.tm.c4 header{display:block!important}
-  .tm.p3,.tm.m1{break-inside:avoid!important}
+  .tm.p3 .cvhead,.tm.m1 .cvhead,.tm.m3 .cvhead{display:none!important}
+  .tm.p3,.tm.m1,.tm.m3{break-inside:avoid!important}
 }
 `;
     document.head.appendChild(s);
