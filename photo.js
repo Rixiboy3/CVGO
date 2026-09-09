@@ -18,7 +18,15 @@
       .cv.modern .side{position:relative}
       .cvgoPhotoSpace{padding-right:125px}
       @media(max-width:950px){.cvgoCvPhoto{right:20px}.cvgoPhotoSpace{padding-right:110px}}
-      @media print{.cvgoPhotoBox{display:none!important}}
+      @media print{
+        .cvgoPhotoBox{display:none!important}
+        html,body,.cv,.cv *{-webkit-print-color-adjust:exact!important;print-color-adjust:exact!important}
+        .cv.modern .side{background:#111827!important;color:#fff!important}
+        .cv.modern .side .role{color:#cbd5e1!important}
+        .cv.modern .side .contact{border-color:#475467!important;color:#cbd5e1!important}
+        .cv.modern .side .cvsec h3{color:#cbd5e1!important}
+        .cv.modern .side .skill{background:#344054!important;color:#fff!important}
+      }
     `;document.head.appendChild(s);
   }
 
