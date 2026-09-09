@@ -20,7 +20,7 @@
     if(typeof window.render==='function')window.render();
     if(typeof window.cvgoServerSave==='function')window.cvgoServerSave();
   }
-  function renderAnalysis(box,a,p){
+  function renderAnalysis(box,a,p,offer){
     const score=Math.max(0,Math.min(100,Number(a.score||0)));
     const keywords=Array.isArray(a.keywords)?a.keywords.filter(Boolean):[];
     const matched=keywords.filter(k=>localMatch(k,p));
@@ -82,7 +82,7 @@
       const p=profile();
       const r=await fetch('/api/ai-generate',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({offer,profile:p})});
       const j=await r.json();if(!r.ok)throw j;
-      renderAnalysis(box,j.result||{},p);
+      renderAnalysis(box,j.result||{},p,offer);
     }catch(e){
       box.innerHTML=`<b>❌ No se pudo analizar la oferta</b><p style="font-size:13px;margin-bottom:0">${esc(e?.error==='AI_NOT_CONFIGURED'?'La IA no está configurada en el servidor.':e?.error==='OFFER_REQUIRED'?'La oferta es obligatoria.':'Inténtalo de nuevo en unos segundos.')}</p>`;
     }
