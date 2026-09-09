@@ -4,11 +4,13 @@
     const s=document.createElement('style');
     s.id='cvgoAuthDesign';
     s.textContent=`
+      /* El diseño de autenticación nunca debe anular la clase .hidden */
+      .auth.hidden{display:none!important}
       body:has(#auth:not(.hidden)){background:radial-gradient(circle at 22% 25%,rgba(37,99,235,.10),transparent 34%),linear-gradient(135deg,#f7faff 0%,#eef4ff 52%,#f8fafc 100%);min-height:100vh;color:#101828}
       body:has(#auth:not(.hidden)) header{height:78px;padding:0 5%;background:rgba(8,20,38,.98);border-bottom:1px solid #1d3150;box-shadow:0 4px 20px rgba(16,24,40,.08)}
       body:has(#auth:not(.hidden)) header .logo{font-size:30px;letter-spacing:-1.2px;font-weight:950}
       body:has(#auth:not(.hidden)) header span{color:#c8d5e8;font-size:13px}
-      .auth{max-width:1240px;margin:0 auto;padding:62px 42px 48px;display:grid;grid-template-columns:minmax(0,1fr) 470px;gap:72px;align-items:center;min-height:calc(100vh - 78px);box-sizing:border-box}
+      .auth{max-width:1240px;margin:0 auto;padding:62px 42px 48px;display:grid;grid-template-columns:minmax(0,1fr) 470px;gap:72px;align-items:center;min-height:calc(100vh - 78px)}
       .auth:before{content:'';display:block;position:absolute;inset:78px 50% 0 0;background:radial-gradient(circle at 55% 48%,rgba(59,130,246,.10),transparent 48%);pointer-events:none}
       .auth .card{position:relative;z-index:2;max-width:none;width:auto;margin:0;padding:42px 40px 34px;border-radius:24px;border:1px solid rgba(208,213,221,.78);background:rgba(255,255,255,.96);box-shadow:0 28px 80px rgba(16,24,40,.13);overflow:hidden}
       .auth .card:before{content:'';position:absolute;left:0;right:0;top:0;height:4px;background:linear-gradient(90deg,#2563eb,#60a5fa,#22c55e)}
