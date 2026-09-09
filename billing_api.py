@@ -144,10 +144,14 @@ def register_billing(app):
             return app_module.jsonify(ok=False, error='STRIPE_ANNUAL_PRICE_NOT_CONFIGURED' if plan == 'annual' else 'STRIPE_NOT_CONFIGURED'), 503
         if real_is_pro(user):
             return app_module.jsonify(ok=False, error='ALREADY_PRO'), 409
-        base_success = os.getenv('CVGO_SUCCESS_URL', 'https://cvgo.onrender.com/?paid=1')
-        joiner = '&' if '?' in base_success else '?'
-        success_url = base_success + joiner + 'session_id={CHECKOUT_SESSION_ID}'
-        cancel_url = os.getenv('CVGO_CANCEL_URL', 'https://cvgo.onrender.com/?cancelled=1')
+
+        # Always build the return URLs from the actual host serving CVGO.
+        # This prevents an old localhost value in Render from sending a production
+        # customer back to a development machine after Stripe Checkout.
+        base_url = app_module.request.host_url.rstrip('/')
+        success_url = base_url + '/?paid=1&session_id={CHECKOUT_SESSION_ID}'
+        cancel_url = base_url + '/?cancelled=1'
+
         try:
             s = st.checkout.Session.create(
                 mode='subscription',
@@ -238,7 +242,6 @@ def register_billing(app):
             return '', 200
         return '', 200
 
-    # Replace legacy handlers so the existing Stripe URLs keep working.
     replace('checkout', checkout_v2)
     replace('webhook', webhook_v2)
 
