@@ -130,6 +130,8 @@ RESPUESTA DEL CANDIDATO:
         def home_with_interview(*args, **kwargs):
             response = original_home(*args, **kwargs)
             body = response.get_data(as_text=True)
+            if 'cvgo-session-checking' not in body:
+                body = body.replace('</head>', '<style>html.cvgo-session-checking #auth{display:none!important}html.cvgo-session-checking #main{display:none!important}html.cvgo-session-checking body:after{content:"";position:fixed;inset:0;background:#f4f6fa;z-index:9999;pointer-events:none}</style><script>document.documentElement.classList.add("cvgo-session-checking");(function(){var t=setInterval(function(){var a=document.getElementById("auth"),m=document.getElementById("main");if((a&&!a.classList.contains("hidden"))||(m&&!m.classList.contains("hidden"))){document.documentElement.classList.remove("cvgo-session-checking");clearInterval(t)}},20);setTimeout(function(){document.documentElement.classList.remove("cvgo-session-checking");clearInterval(t)},10000)})();</script></head>')
             if '/interview.js' not in body:
                 body = body.replace('</body>', '<script src="/interview.js?v=3"></script></body>')
             if '/pro.js' not in body:
