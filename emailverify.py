@@ -128,8 +128,19 @@ def _issue_and_send(user):
         raise
 
 
+def _record_verified_trial(user):
+    app_module = _app()
+    email_hash = hashlib.sha256(_secret() + b'|antifraud-email|' + str(user.get('email') or '').strip().lower().encode('utf-8')).hexdigest()
+    ip = request.headers.get('X-Forwarded-For', '').split(',')[0].strip() if request.headers.get('X-Forwarded-For') else (request.remote_addr or '')
+    ip_hash = hashlib.sha256(_secret() + b'|antifraud-ip|' + ip.encode('utf-8')).hexdigest() if ip else None
+    device = str(request.headers.get('X-CVProfit-Device') or '').strip()[:200]
+    device_hash = hashlib.sha256(_secret() + b'|antifraud-device|' + device.encode('utf-8')).hexdigest() if device else None
+    app_module.db_execute('INSERT INTO trial_guards(device_hash,ip_hash,email_hash,created_at) VALUES(:device,:ip,:email,:created)', {'device':device_hash,'ip':ip_hash,'email':email_hash,'created':datetime.now(timezone.utc).isoformat()})
+
+
 def register_email_verification(app):
     _ensure_schema()
+    app_module = _app()
 
     original_register = app.view_functions.get('register')
     original_login = app.view_functions.get('login')
@@ -140,7 +151,6 @@ def register_email_verification(app):
         response = original_register()
         if getattr(response, 'status_code', 500) != 200:
             return response
-        app_module = _app()
         user = app_module.current_user()
         if not user:
             return jsonify(ok=False, error='REGISTER_FAILED'), 500
@@ -168,7 +178,6 @@ def register_email_verification(app):
         response = original_login()
         if getattr(response, 'status_code', 500) != 200:
             return response
-        app_module = _app()
         user = app_module.current_user()
         if user and not user.get('verified_at'):
             from flask import session
@@ -184,11 +193,7 @@ def register_email_verification(app):
         token = str(request.args.get('token') or '').strip()
         if not token:
             return redirect('/?verify=invalid')
-        app_module = _app()
-        row = app_module.db_fetchone(
-            "SELECT * FROM email_verification_tokens WHERE token_hash=:hash AND used_at IS NULL LIMIT 1",
-            {'hash': _hash_token(token)},
-        )
+        row = app_module.db_fetchone("SELECT * FROM email_verification_tokens WHERE token_hash=:hash AND used_at IS NULL LIMIT 1", {'hash': _hash_token(token)})
         if not row:
             return redirect('/?verify=invalid')
         try:
@@ -207,13 +212,12 @@ def register_email_verification(app):
         from flask import session
         session['user_id'] = user['id']
         try:
-            import antifraud
-            antifraud._record_trial()
-            response = make_response(redirect('/?verified=1'))
-            response.set_cookie('cvprofit_trial_guard', secrets.token_urlsafe(24), max_age=30*86400, httponly=True, secure=app.config.get('SESSION_COOKIE_SECURE', True), samesite='Lax')
-            return response
+            _record_verified_trial(user)
         except Exception:
-            return redirect('/?verified=1')
+            pass
+        response = make_response(redirect('/?verified=1'))
+        response.set_cookie('cvprofit_trial_guard', secrets.token_urlsafe(24), max_age=30*86400, httponly=True, secure=app.config.get('SESSION_COOKIE_SECURE', True), samesite='Lax')
+        return response
 
     @app.post('/api/resend-verification')
     def resend_verification():
