@@ -186,6 +186,16 @@ RESPUESTA DEL CANDIDATO:
         from flask import send_from_directory
         return send_from_directory('.', 'authfix.js', mimetype='application/javascript')
 
+    @app.get('/dashboard.css')
+    def dashboard_css():
+        from flask import send_from_directory
+        return send_from_directory('.', 'dashboard.css', mimetype='text/css')
+
+    @app.get('/dashboard.js')
+    def dashboard_js():
+        from flask import send_from_directory
+        return send_from_directory('.', 'dashboard.js', mimetype='application/javascript')
+
 register_interview(__import__('app').app)
 
 # Billing loads after app initialization and route registration.
