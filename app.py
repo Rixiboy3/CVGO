@@ -34,7 +34,7 @@ PRICE = os.getenv('STRIPE_PRICE_ID', '').strip()
 WHSEC = os.getenv('STRIPE_WEBHOOK_SECRET', '').strip()
 OPENAI_KEY = os.getenv('OPENAI_API_KEY', '').strip()
 OPENAI_MODEL = os.getenv('OPENAI_MODEL', 'gpt-5.6-luna').strip()
-TRIAL_DAYS = 7
+TRIAL_DAYS = 3
 
 
 def db_execute(sql, params=None):
