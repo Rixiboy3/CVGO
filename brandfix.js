@@ -15,10 +15,20 @@
       }
     }
   }
+  function setHeadline(){
+    const title=document.getElementById('authTitle');
+    const text=document.getElementById('authText');
+    const btn=document.getElementById('authBtn');
+    if(title&&btn&&btn.textContent.includes('3 días')){
+      title.textContent='Tu CV, diseñado para destacar.';
+      if(text)text.textContent='Crea, optimiza y adapta tu CV con IA para destacar en cada oferta de empleo.';
+    }
+  }
   function run(){
     document.title=document.title.replace(/CVGO/g,BRAND);
     replaceText(document.body);
+    setHeadline();
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',run);else run();
-  new MutationObserver(muts=>muts.forEach(m=>m.addedNodes.forEach(replaceText))).observe(document.documentElement,{childList:true,subtree:true});
+  new MutationObserver(muts=>muts.forEach(m=>{m.addedNodes.forEach(replaceText);setHeadline();})).observe(document.documentElement,{childList:true,subtree:true});
 })();
