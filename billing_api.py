@@ -248,16 +248,25 @@ def register_billing(app):
         try:
             if typ == 'checkout.session.completed':
                 if obj.get('payment_status') in ('paid', 'no_payment_required'):
-                    save_subscription(obj)
+                    if not save_subscription(obj):
+                        return 'Subscription not saved', 500
             elif typ == 'invoice.paid':
                 sub_id = obj.get('subscription')
                 if sub_id:
                     sub = st.Subscription.retrieve(sub_id)
-                    update_subscription(sub, obj.get('customer_email') or '')
+                    if not update_subscription(sub, obj.get('customer_email') or ''):
+                        return 'Subscription not found', 500
+            elif typ in ('invoice.payment_failed', 'invoice.payment_action_required'):
+                sub_id = obj.get('subscription')
+                if sub_id:
+                    sub = st.Subscription.retrieve(sub_id)
+                    if not update_subscription(sub, obj.get('customer_email') or ''):
+                        return 'Subscription not found', 500
             elif typ in ('customer.subscription.updated', 'customer.subscription.deleted'):
-                update_subscription(obj)
+                if not update_subscription(obj):
+                    return 'Subscription not found', 500
         except Exception:
-            return '', 200
+            return 'Webhook processing failed', 500
         return '', 200
 
     replace('checkout', checkout_v2)
