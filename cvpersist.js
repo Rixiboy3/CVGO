@@ -90,3 +90,9 @@
   s.defer=true;
   document.head.appendChild(s);
 })();
+
+(function(){
+  if(document.getElementById('cvgoDashboardCss'))return;
+  const link=document.createElement('link');link.id='cvgoDashboardCss';link.rel='stylesheet';link.href='/dashboard.css?v=1';document.head.appendChild(link);
+  const s=document.createElement('script');s.id='cvgoDashboardScript';s.src='/dashboard.js?v=1';s.defer=true;document.body.appendChild(s);
+})();
