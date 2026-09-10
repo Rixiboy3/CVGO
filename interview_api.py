@@ -202,3 +202,7 @@ register_interview(__import__('app').app)
 
 # Billing loads after app initialization and route registration.
 import billing_api
+
+# Trial anti-abuse protection loads after all application routes are registered.
+import antifraud
+antifraud.register_antifraud(__import__('app').app)
