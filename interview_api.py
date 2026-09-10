@@ -183,7 +183,7 @@ RESPUESTA DEL CANDIDATO:
     @app.get('/cvgo_stylefix.js')
     def cvgo_stylefix_js():
         from flask import send_from_directory
-        return send_from_directory('.', 'cvgo_stylefix.js', mimetype='text/javascript')
+        return send_from_directory('.', 'cvgo_stylefix.js', mimetype='application/javascript')
 
     @app.get('/authfix.js')
     def authfix_js():
@@ -213,3 +213,7 @@ import billing_api
 # Trial anti-abuse protection loads after all application routes are registered.
 import antifraud
 antifraud.register_antifraud(__import__('app').app)
+
+# AI cover-letter generation loads after the main application routes.
+import cover_api
+cover_api.register_cover(__import__('app').app)
