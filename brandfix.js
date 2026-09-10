@@ -14,6 +14,11 @@
         if(v&&v.includes('CVGO'))node.setAttribute(attr,v.replace(/CVGO/g,BRAND));
       }
     }
+    if(node.hasAttribute('href')){
+      const href=node.getAttribute('href');
+      if(href==='/legal#condiciones')node.setAttribute('href','/legal/condiciones');
+      if(href==='/legal#privacidad')node.setAttribute('href','/legal/privacidad');
+    }
   }
   function setHeadline(){
     const title=document.getElementById('authTitle');
@@ -30,5 +35,5 @@
     setHeadline();
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',run);else run();
-  new MutationObserver(muts=>muts.forEach(m=>{m.addedNodes.forEach(replaceText);setHeadline();})).observe(document.documentElement,{childList:true,subtree:true});
+  new MutationObserver(muts=>muts.forEach(m=>m.addedNodes.forEach(node=>{replaceText(node);setHeadline();}))).observe(document.documentElement,{childList:true,subtree:true});
 })();
