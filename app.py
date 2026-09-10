@@ -1,4 +1,4 @@
-import os, secrets, json, re
+import os, secrets, json, re, time
 from datetime import datetime, timedelta, timezone
 
 from flask import Flask, request, jsonify, send_from_directory, session, Response
@@ -167,7 +167,7 @@ def save_paid(s):
 @app.get('/')
 def home():
     html = open('index.html', encoding='utf-8').read()
-    html = html.replace('</body>', '<script src="/ai.js?v=2"></script><script src="/cvpersist.js?v=2"></script></body>')
+    html = html.replace('</body>', '<script src="/ai.js?v=3"></script><script src="/cvpersist.js?v=3"></script></body>')
     return Response(html, mimetype='text/html')
 
 
@@ -261,6 +261,38 @@ def extract_json(text_value):
     return json.loads(m.group(0) if m else s)
 
 
+AI_CV_SCHEMA = {
+    'type': 'object',
+    'additionalProperties': False,
+    'properties': {
+        'score': {'type': 'integer'},
+        'summary': {'type': 'string'},
+        'matches': {'type': 'array', 'items': {'type': 'string'}},
+        'missing': {'type': 'array', 'items': {'type': 'string'}},
+        'recommendations': {'type': 'array', 'items': {'type': 'string'}},
+        'keywords': {'type': 'array', 'items': {'type': 'string'}},
+        'professional_title': {'type': 'string'},
+        'professional_summary': {'type': 'string'},
+        'experiences': {
+            'type': 'array',
+            'items': {
+                'type': 'object',
+                'additionalProperties': False,
+                'properties': {
+                    'position': {'type': 'string'},
+                    'company': {'type': 'string'},
+                    'dates': {'type': 'string'},
+                    'description': {'type': 'string'}
+                },
+                'required': ['position', 'company', 'dates', 'description']
+            }
+        },
+        'skills': {'type': 'array', 'items': {'type': 'string'}}
+    },
+    'required': ['score', 'summary', 'matches', 'missing', 'recommendations', 'keywords', 'professional_title', 'professional_summary', 'experiences', 'skills']
+}
+
+
 @app.post('/api/ai-generate')
 def ai_generate():
     if not current_user():
@@ -273,7 +305,7 @@ def ai_generate():
     if not offer:
         return jsonify(ok=False, error='OFFER_REQUIRED'), 400
     from openai import OpenAI
-    client = OpenAI(api_key=OPENAI_KEY)
+    client = OpenAI(api_key=OPENAI_KEY, timeout=60.0, max_retries=3)
     original_exps = profile.get('experience') or []
     prompt = f"""
 Eres un especialista senior en selección, CV y sistemas ATS. Debes analizar la compatibilidad REAL entre el candidato y la oferta y proponer una adaptación del CV.
@@ -302,8 +334,7 @@ PUNTUACIÓN:
 - Si un requisito esencial falta, no superes 85 salvo que el resto esté claramente cubierto.
 - Si faltan varios requisitos importantes, reduce proporcionalmente la puntuación.
 
-Devuelve SOLO JSON con esta estructura exacta:
-{{"score":0,"summary":"","matches":[],"missing":[],"recommendations":[],"keywords":[],"professional_title":"","professional_summary":"","experiences":[{{"position":"","company":"","dates":"","description":""}}],"skills":[]}}
+Devuelve únicamente la información solicitada por el esquema estructurado.
 
 OFERTA:
 {offer}
@@ -311,34 +342,55 @@ OFERTA:
 CANDIDATO:
 {json.dumps(profile, ensure_ascii=False)}
 """
-    try:
-        response = client.responses.create(model=OPENAI_MODEL, input=prompt)
-        result = extract_json(getattr(response, 'output_text', ''))
-        result['score'] = max(0, min(100, int(result.get('score', 0))))
-        for key in ('matches', 'missing', 'recommendations', 'keywords'):
-            if not isinstance(result.get(key), list):
-                result[key] = []
-            result[key] = [str(x).strip() for x in result[key] if str(x).strip()]
-        returned = result.get('experiences') or []
-        safe_experiences = []
-        for i, original in enumerate(original_exps):
-            ai_exp = returned[i] if i < len(returned) and isinstance(returned[i], dict) else {}
-            original = dict(original) if isinstance(original, dict) else {}
-            description = str(ai_exp.get('description', '')).strip() or str(original.get('description', '')).strip()
-            safe_experiences.append({'position': str(original.get('position', '')).strip(), 'company': str(original.get('company', '')).strip(), 'dates': str(original.get('dates', '')).strip(), 'description': description})
-        result['experiences'] = safe_experiences
-        original_skills = [s.strip() for s in str(profile.get('skills', '')).split(',') if s.strip()]
-        ai_skills = [str(s).strip() for s in (result.get('skills') or []) if str(s).strip()]
-        if original_skills:
-            allowed_skills = {x.lower() for x in original_skills}
-            result['skills'] = [s for s in ai_skills if s.lower() in allowed_skills] or original_skills
-        else:
-            result['skills'] = []
-        return jsonify(ok=True, result=result, model=OPENAI_MODEL)
-    except json.JSONDecodeError:
-        return jsonify(ok=False, error='AI_INVALID_RESPONSE'), 502
-    except Exception as e:
-        return jsonify(ok=False, error='AI_REQUEST_FAILED', detail=str(e)[:300]), 502
+
+    last_error = None
+    for attempt in range(1, 4):
+        try:
+            response = client.responses.create(
+                model=OPENAI_MODEL,
+                input=prompt,
+                text={
+                    'format': {
+                        'type': 'json_schema',
+                        'name': 'cvgo_cv_optimization',
+                        'description': 'Resultado estructurado de compatibilidad ATS y adaptación segura del CV.',
+                        'schema': AI_CV_SCHEMA,
+                        'strict': True
+                    }
+                }
+            )
+            if getattr(response, 'status', None) == 'incomplete':
+                raise RuntimeError('AI_INCOMPLETE_RESPONSE')
+            result = json.loads(getattr(response, 'output_text', '') or '{}')
+            result['score'] = max(0, min(100, int(result.get('score', 0))))
+            for key in ('matches', 'missing', 'recommendations', 'keywords'):
+                if not isinstance(result.get(key), list):
+                    result[key] = []
+                result[key] = [str(x).strip() for x in result[key] if str(x).strip()]
+            returned = result.get('experiences') or []
+            safe_experiences = []
+            for i, original in enumerate(original_exps):
+                ai_exp = returned[i] if i < len(returned) and isinstance(returned[i], dict) else {}
+                original = dict(original) if isinstance(original, dict) else {}
+                description = str(ai_exp.get('description', '')).strip() or str(original.get('description', '')).strip()
+                safe_experiences.append({'position': str(original.get('position', '')).strip(), 'company': str(original.get('company', '')).strip(), 'dates': str(original.get('dates', '')).strip(), 'description': description})
+            result['experiences'] = safe_experiences
+            original_skills = [s.strip() for s in str(profile.get('skills', '')).split(',') if s.strip()]
+            ai_skills = [str(s).strip() for s in (result.get('skills') or []) if str(s).strip()]
+            if original_skills:
+                allowed_skills = {x.lower() for x in original_skills}
+                result['skills'] = [s for s in ai_skills if s.lower() in allowed_skills] or original_skills
+            else:
+                result['skills'] = []
+            return jsonify(ok=True, result=result, model=OPENAI_MODEL)
+        except json.JSONDecodeError as e:
+            last_error = f'AI_INVALID_RESPONSE: {e}'
+        except Exception as e:
+            last_error = str(e)
+        if attempt < 3:
+            time.sleep(attempt * 1.5)
+
+    return jsonify(ok=False, error='AI_REQUEST_FAILED', detail=(last_error or 'unknown')[:300], retryable=True), 502
 
 
 @app.post('/api/create-checkout')
@@ -388,15 +440,15 @@ def verify():
 
 @app.get('/api/health')
 def health():
-    u = db_fetchone('SELECT COUNT(*) AS n FROM users')['n']
-    p = db_fetchone("SELECT COUNT(*) AS n FROM purchases WHERE status='paid'")['n']
-    return jsonify(status='ok', db_backend=DB_BACKEND, persistent_db=DB_BACKEND == 'postgresql', stripe_configured=bool(SK and PRICE), ai_configured=bool(OPENAI_KEY), users=u, paid_purchases=p)
+    try:
+        init_db()
+        return jsonify(ok=True, database=DB_BACKEND)
+    except Exception as e:
+        return jsonify(ok=False, error=str(e)[:200]), 500
 
 
 init_db()
 
-# Load interview routes after the main Flask routes and database initialization.
-import interview_api
 
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=int(os.getenv('PORT', '5000')))
+    app.run(host='0.0.0.0', port=int(os.getenv('PORT', '5000')), debug=False)
