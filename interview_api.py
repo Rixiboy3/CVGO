@@ -148,6 +148,8 @@ RESPUESTA DEL CANDIDATO:
                 body = body.replace('</body>', '<script src="/authfix.js?v=2"></script></body>')
             if '/brandfix.js' not in body:
                 body = body.replace('</body>', '<script src="/brandfix.js?v=2"></script></body>')
+            if '/antifraud.js' not in body:
+                body = body.replace('</body>', '<script src="/antifraud.js?v=1"></script></body>')
             response.set_data(body)
             response.headers.pop('Content-Length', None)
             return response
@@ -187,6 +189,11 @@ RESPUESTA DEL CANDIDATO:
     def authfix_js():
         from flask import send_from_directory
         return send_from_directory('.', 'authfix.js', mimetype='application/javascript')
+
+    @app.get('/antifraud.js')
+    def antifraud_js():
+        from flask import send_from_directory
+        return send_from_directory('.', 'antifraud.js', mimetype='application/javascript')
 
     @app.get('/dashboard.css')
     def dashboard_css():
