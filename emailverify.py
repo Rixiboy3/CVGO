@@ -198,7 +198,7 @@ def register_email_verification(app):
         user = app_module.db_fetchone('SELECT * FROM users WHERE id=:uid', {'uid': row['user_id']})
         if not user:
             return redirect('/?verify=invalid')
-        app_module.db_execute('UPDATE users SET verified_at=CURRENT_TIMESTAMP WHERE id=:uid', {'uid': user['id']})
+        app_module.db_execute('UPDATE users SET verified_at=CURRENT_TIMESTAMP, trial_started_at=:trial WHERE id=:uid', {'uid': user['id'], 'trial': datetime.now(timezone.utc).isoformat()})
         app_module.db_execute('UPDATE email_verification_tokens SET used_at=CURRENT_TIMESTAMP WHERE id=:id', {'id': row['id']})
         from flask import session
         session['user_id'] = user['id']
