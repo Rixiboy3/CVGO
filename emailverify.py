@@ -28,8 +28,10 @@ def _hash_token(token):
 def _ensure_schema():
     app_module = _app()
     if app_module.DB_BACKEND == 'postgresql':
-        app_module.db_execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS verified_at TIMESTAMP")
-        app_module.db_execute("UPDATE users SET verified_at=CURRENT_TIMESTAMP WHERE verified_at IS NULL AND created_at < CURRENT_TIMESTAMP")
+        existing = app_module.db_fetchone("SELECT 1 FROM information_schema.columns WHERE table_schema='public' AND table_name='users' AND column_name='verified_at'")
+        if not existing:
+            app_module.db_execute("ALTER TABLE users ADD COLUMN verified_at TIMESTAMP")
+            app_module.db_execute("UPDATE users SET verified_at=CURRENT_TIMESTAMP WHERE verified_at IS NULL")
         app_module.db_execute("""CREATE TABLE IF NOT EXISTS email_verification_tokens(
             id BIGSERIAL PRIMARY KEY,
             user_id BIGINT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -43,7 +45,7 @@ def _ensure_schema():
         cols = app_module.db_fetchall('PRAGMA table_info(users)')
         if not any(str(c.get('name')) == 'verified_at' for c in cols):
             app_module.db_execute('ALTER TABLE users ADD COLUMN verified_at TIMESTAMP')
-        app_module.db_execute("UPDATE users SET verified_at=datetime('now') WHERE verified_at IS NULL AND created_at < datetime('now')")
+            app_module.db_execute("UPDATE users SET verified_at=datetime('now') WHERE verified_at IS NULL")
         app_module.db_execute("""CREATE TABLE IF NOT EXISTS email_verification_tokens(
             id INTEGER PRIMARY KEY AUTOINCREMENT,
             user_id INTEGER NOT NULL,
@@ -69,12 +71,10 @@ def _send_email(email, token):
     api_key, sender_email, sender_name = _config()
     if not api_key or not sender_email:
         raise RuntimeError('EMAIL_NOT_CONFIGURED')
-
     base_url = os.getenv('CVPROFIT_BASE_URL', '').strip().rstrip('/') or request.host_url.rstrip('/')
     verify_url = f'{base_url}/api/verify-email?token={token}'
     safe_url = html.escape(verify_url, quote=True)
     safe_email = html.escape(email)
-
     payload = {
         'sender': {'name': sender_name, 'email': sender_email},
         'to': [{'email': email}],
