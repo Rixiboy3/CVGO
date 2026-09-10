@@ -4,6 +4,8 @@
     const s=document.createElement('style');
     s.id='cvgoAuthDesign';
     s.textContent=`
+      html.cvgo-session-check{visibility:hidden!important}
+      html.cvgo-session-check body{visibility:hidden!important}
       .auth.hidden{display:none!important}
       body:has(#auth:not(.hidden)){background:radial-gradient(circle at 22% 25%,rgba(37,99,235,.10),transparent 34%),linear-gradient(135deg,#f7faff 0%,#eef4ff 52%,#f8fafc 100%);min-height:100vh;color:#101828}
       body:has(#auth:not(.hidden)) header{height:78px;padding:0 5%;background:rgba(8,20,38,.98);border-bottom:1px solid #1d3150;box-shadow:0 4px 20px rgba(16,24,40,.08)}
@@ -91,7 +93,25 @@
     if(cb && !cb.checked){if(wrap)wrap.classList.add('invalid');if(err)err.style.display='block';cb.focus();return false}
     return true;
   }
+  async function revealAfterSessionCheck(){
+    try{
+      const r=await fetch('/api/me',{cache:'no-store'});
+      const u=await r.json();
+      if(u.logged_in){
+        const auth=document.getElementById('auth'),main=document.getElementById('main');
+        if(auth)auth.classList.add('hidden');
+        if(main)main.classList.remove('hidden');
+        const hs=document.getElementById('headerStatus');if(hs)hs.textContent=u.email;
+        if(typeof updateTrial==='function')updateTrial(u);
+        if(typeof addExp==='function' && !document.querySelector('#experience .item'))addExp();
+        if(typeof addEdu==='function' && !document.querySelector('#education .item'))addEdu();
+        if(typeof render==='function')render();
+      }
+    }catch(e){}
+    document.documentElement.classList.remove('cvgo-session-check');
+  }
   function init(){
+    document.documentElement.classList.add('cvgo-session-check');
     style();addMarketing();addBrand();addConsent();
     if(typeof authMode!=='undefined'){
       authMode='login';applyAuthLabels();
@@ -106,6 +126,7 @@
         wrappedSubmit.__cvgoWrapped=true;window.submitAuth=wrappedSubmit;
       }
     }
+    revealAfterSessionCheck();
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
 })();
