@@ -14,7 +14,7 @@
     const main=q('#main'), app=q('.app');
     if(!app)return;
     const side=document.createElement('aside');side.className='dash-sidebar';side.innerHTML=`
-      <div class="dash-brand"><div class="dash-brand-icon">CV</div><div><b>CVGO</b><small>Tu CV, más oportunidades</small></div></div>
+      <div class="dash-brand"><div class="dash-brand-icon">CV</div><div><b>CVProfit</b><small>Tu CV, más oportunidades</small></div></div>
       <nav class="dash-nav">
         <button class="active" data-go="inicio"><i>⌂</i><span>Inicio<small>Panel principal</small></span></button>
         <button data-go="cv"><i>▣</i><span>Mi CV<small>Crea y edita tu currículum</small></span></button>
@@ -22,11 +22,11 @@
         <button data-go="entrevista"><i>◉</i><span>Simulador de entrevista<small>Prepárate con IA</small></span></button>
         <button data-go="oferta"><i>⌕</i><span>Analizar oferta<small>Adapta tu CV al puesto</small></span></button>
       </nav>
-      <div class="dash-pro"><div class="pro-title">✨ Saca todo el partido a CVGO</div><p>Tu CV, cartas, entrevistas y análisis ATS en un solo lugar.</p><button data-go="cv">Continuar con mi CV →</button></div>
-      <div class="dash-quote">“Un mejor CV te acerca a un mejor futuro”<br><br>— CVGO</div>`;
+      <div class="dash-pro"><div class="pro-title">✨ Saca todo el partido a CVProfit</div><p>Tu CV, cartas, entrevistas y análisis ATS en un solo lugar.</p><button data-go="cv">Continuar con mi CV →</button></div>
+      <div class="dash-quote">“Un mejor CV te acerca a un mejor futuro”<br><br>— CVProfit</div>`;
     main.insertBefore(side,app);
 
-    const top=document.createElement('div');top.className='dash-top';top.innerHTML=`<div class="dash-welcome"><h1>Hola, bienvenido a CVGO 👋</h1><p>Crea, optimiza y presenta tu perfil profesional con una imagen impecable.</p></div><div class="dash-user"><div class="dash-avatar">CV</div><div><b id="dashUserEmail">Tu cuenta CVGO</b><small>Sesión activa</small></div></div>`;
+    const top=document.createElement('div');top.className='dash-top';top.innerHTML=`<div class="dash-welcome"><h1>Hola, bienvenido a CVProfit 👋</h1><p>Crea, optimiza y presenta tu perfil profesional con una imagen impecable.</p></div><div class="dash-user"><div class="dash-avatar">CV</div><div><b id="dashUserEmail">Tu cuenta CVProfit</b><small>Sesión activa</small></div></div>`;
     app.insertBefore(top,app.firstChild);
 
     const quick=document.createElement('div');quick.className='dash-quick';quick.innerHTML=`
