@@ -146,6 +146,8 @@ RESPUESTA DEL CANDIDATO:
                 body = body.replace('</body>', '<script src="/cvgo_stylefix.js?v=4"></script></body>')
             if '/authfix.js' not in body:
                 body = body.replace('</body>', '<script src="/authfix.js?v=2"></script></body>')
+            if '/brandfix.js' not in body:
+                body = body.replace('</body>', '<script src="/brandfix.js?v=1"></script></body>')
             response.set_data(body)
             response.headers.pop('Content-Length', None)
             return response
