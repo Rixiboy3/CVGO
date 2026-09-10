@@ -88,7 +88,7 @@
   function protectRegister(){
     if(typeof authMode==='undefined'||authMode!=='register')return true;
     const cb=document.getElementById('cvgoConsent'),wrap=document.getElementById('cvgoConsentWrap'),err=document.getElementById('cvgoConsentError');
-    if(cb&& !cb.checked){if(wrap)wrap.classList.add('invalid');if(err)err.style.display='block';cb.focus();return false}
+    if(cb && !cb.checked){if(wrap)wrap.classList.add('invalid');if(err)err.style.display='block';cb.focus();return false}
     return true;
   }
   function init(){
@@ -102,7 +102,7 @@
       }
       const originalSubmit=window.submitAuth;
       if(typeof originalSubmit==='function'&&!originalSubmit.__cvgoWrapped){
-        async function wrappedSubmit(){if(!protectRegister())return originalSubmit();}
+        async function wrappedSubmit(){if(!protectRegister())return;return originalSubmit.apply(window,arguments)}
         wrappedSubmit.__cvgoWrapped=true;window.submitAuth=wrappedSubmit;
       }
     }
