@@ -15,8 +15,9 @@
   window.fetch=async function(input,init){
     let url='';
     try{url=typeof input==='string'?input:(input&&input.url)||''}catch(e){}
+    const isAuth=/\/api\/(register|login)(?:\?|$)/.test(url);
     const isRegister=/\/api\/register(?:\?|$)/.test(url);
-    if(isRegister){
+    if(isAuth){
       init=init?{...init}:{method:'GET'};
       const headers=new Headers(init.headers||{});
       headers.set('X-CVProfit-Device',deviceId());
