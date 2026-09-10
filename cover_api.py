@@ -92,7 +92,6 @@ CV DEL CANDIDATO:
                 if not letter:
                     raise ValueError('Carta vacía')
 
-                # Safety net: reject obvious third-person wording before returning it.
                 name = str(profile.get('name') or '').strip()
                 lowered = letter.lower()
                 forbidden = [
@@ -104,7 +103,6 @@ CV DEL CANDIDATO:
                 if any(x in lowered for x in forbidden):
                     raise ValueError('THIRD_PERSON_LETTER')
                 if name and name.lower() in lowered:
-                    # The name is allowed in the signature, but not as a third-person reference.
                     body_without_signature = lowered.rsplit(name.lower(), 1)[0]
                     if name.lower() in body_without_signature:
                         raise ValueError('NAME_USED_IN_BODY')
@@ -118,3 +116,21 @@ CV DEL CANDIDATO:
                 time.sleep(attempt * 1.5)
 
         return jsonify(ok=False, error='AI_REQUEST_FAILED', detail=(last_error or 'unknown')[:300], retryable=True), 502
+
+    # Replace the existing home view with a wrapper that also loads the cover-letter frontend.
+    original_home = app.view_functions.get('home')
+    if original_home:
+        def home_with_cover(*args, **kwargs):
+            response = original_home(*args, **kwargs)
+            body = response.get_data(as_text=True)
+            if '/coverfix.js' not in body:
+                body = body.replace('</body>', '<script src="/coverfix.js?v=1"></script></body>')
+                response.set_data(body)
+                response.headers.pop('Content-Length', None)
+            return response
+        app.view_functions['home'] = home_with_cover
+
+    @app.get('/coverfix.js')
+    def coverfix_js():
+        from flask import send_from_directory
+        return send_from_directory('.', 'coverfix.js', mimetype='application/javascript')
