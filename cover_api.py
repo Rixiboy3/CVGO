@@ -1,6 +1,7 @@
 import os
 import json
 import time
+import random
 from flask import request, jsonify
 
 
@@ -25,17 +26,31 @@ def register_cover(app):
         if len(offer) < 20:
             return jsonify(ok=False, error='OFFER_REQUIRED'), 400
 
+        # Vary the natural starting point and argument order so repeated letters do not look templated.
+        approaches = [
+            'Empieza por un aspecto concreto de la oferta que encaje con mi experiencia y desarrolla la carta desde ahí.',
+            'Empieza desde mi situación profesional actual y conecta de forma sencilla esa experiencia con el puesto.',
+            'Empieza explicando de forma breve qué me atrae del trabajo o de la responsabilidad del puesto, sin usar una fórmula de carta estándar.',
+            'Empieza directamente con una conexión profesional clara entre lo que busca la empresa y algo que ya hago en mi trabajo actual.'
+        ]
+        approach = random.choice(approaches)
+
         from openai import OpenAI
         client = OpenAI(api_key=key, timeout=60.0, max_retries=3)
-        prompt = f'''Eres un especialista en selección de personal en España. Vas a escribir una carta de presentación que una persona real podría enviar directamente a una empresa después de leer una oferta de empleo.
+        prompt = f'''Eres un redactor experto en selección de personal en España. Vas a escribir una carta de presentación que una persona real podría enviar directamente a una empresa después de leer una oferta de empleo.
 
 OBJETIVO PRINCIPAL:
-La carta NO debe parecer escrita por una IA ni por una plantilla de internet. Debe sonar como una persona profesional explicando con sus propias palabras por qué ese puesto le interesa y qué experiencia puede aportar. Es preferible una carta sencilla, concreta y algo imperfecta en su ritmo antes que una carta demasiado pulida, solemne o corporativa.
+La carta NO debe parecer escrita por una IA ni por una plantilla de internet. Debe sonar como una persona profesional explicando con sus propias palabras por qué ese puesto le interesa y qué experiencia puede aportar. Es preferible una carta sencilla, concreta y natural antes que una carta demasiado pulida, solemne o corporativa.
+
+PUNTO DE PARTIDA PARA ESTA CARTA:
+{approach}
+
+Este punto de partida es una orientación y NO una plantilla. No repitas literalmente su formulación. Si otro comienzo resulta más natural para este perfil y esta oferta, utilízalo.
 
 PERSONA Y VOZ:
 - Escribe siempre en primera persona, como si la hubiera escrito el propio candidato.
 - Usa una voz profesional pero natural, cercana y directa.
-- Imagina que el candidato conoce su profesión y está escribiendo la carta en unos minutos para acompañar su CV. No escribe un discurso comercial.
+- Imagina que el candidato conoce su profesión y está escribiendo la carta para acompañar su CV. No escribe un discurso comercial.
 - Alterna frases cortas y medias. No hagas que todos los párrafos tengan la misma estructura.
 - No intentes demostrar que conoces muchas palabras profesionales. Prioriza cómo habla normalmente un profesional en España.
 - Evita listas encubiertas de competencias.
@@ -44,7 +59,7 @@ PERSONA Y VOZ:
 EVITA ESTAS FORMAS TÍPICAS Y CUALQUIER VARIACIÓN PARECIDA:
 - "Me dirijo a ustedes para..."
 - "Me complace presentar mi candidatura..."
-- "Me interesa esta posición porque combina..."
+- "Me interesa la posición porque combina..."
 - "Esta oportunidad representa..."
 - "Mi sólida/amplia/contrastada trayectoria..."
 - "Cuento con una sólida experiencia..."
@@ -56,14 +71,15 @@ EVITA ESTAS FORMAS TÍPICAS Y CUALQUIER VARIACIÓN PARECIDA:
 - "Quedo a su disposición para ampliar..."
 No sustituyas estas frases por sinónimos igualmente artificiales. Si una idea puede decirse de forma sencilla, dilo de forma sencilla.
 
-MUY IMPORTANTE SOBRE LA PERSONALIZACIÓN:
+PERSONALIZACIÓN:
 - Primero entiende qué necesita realmente la empresa en la oferta.
 - Después busca en el CV solamente las experiencias que tengan una relación clara con eso.
 - Elige únicamente 2 o 3 conexiones importantes. No intentes meter todo el CV.
 - Explica esas conexiones con hechos concretos del CV, pero sin copiar el CV literalmente.
-- Si hay un cambio de sector, dilo con naturalidad y céntrate en las habilidades que realmente se pueden trasladar. No intentes ocultar el cambio ni inventar experiencia en el nuevo sector.
+- Si hay un cambio de sector, no conviertas la carta en una defensa del cambio. Menciona las competencias transferibles cuando sean relevantes y sigue hablando del valor que el candidato puede aportar.
 - Puedes mencionar por qué la zona, el tipo de trabajo o la responsabilidad encajan con el candidato cuando esa conclusión esté respaldada por el CV.
 - No inventes motivaciones personales, conocimientos de la empresa, clientes, proyectos, logros o cifras.
+- Si una carencia respecto a la oferta no es necesario mencionarla, no la conviertas en protagonista de la carta.
 
 PRIMERA PERSONA:
 - NUNCA hables del candidato en tercera persona.
@@ -72,14 +88,21 @@ PRIMERA PERSONA:
 - NO uses lenguaje inclusivo con barras como "preparado/a", "interesado/a" o "el/la".
 - El nombre del candidato aparece únicamente en la firma.
 
-ESTRUCTURA:
+ESTRUCTURA VARIABLE:
+- No utilices siempre la misma estructura.
+- Elige de forma natural entre estas posibilidades según la oferta y el perfil: empezar por la motivación, empezar por la experiencia actual, empezar por una necesidad concreta de la oferta o empezar por una conexión clara entre el puesto y el territorio.
+- Cambia también el orden de los argumentos cuando tenga sentido.
+- No empieces siempre por "Me interesa...".
+- No empieces siempre por "Actualmente trabajo...".
+- No termines siempre con "Me gustaría tener la oportunidad...".
+- No hagas párrafos simétricos ni todos de una longitud parecida.
+- La variación debe ser natural y no debe perjudicar la claridad.
+
+FORMATO:
 - Saludo natural.
-- 3 párrafos principales, excepcionalmente 4 si realmente aporta algo.
+- 3 párrafos principales; excepcionalmente 4 si realmente aporta algo.
 - Cada párrafo debe tener una idea clara y no demasiado larga.
-- El primer párrafo debe entrar rápidamente en el motivo por el que el puesto interesa, pero sin utilizar una fórmula prefabricada.
-- El segundo debe explicar la experiencia más relacionada.
-- El tercero debe conectar de forma honesta esa experiencia con la necesidad concreta de la empresa y cerrar la carta.
-- Cierre sencillo: "Atentamente," y nombre.
+- Cierre sencillo con "Atentamente," y el nombre.
 - Entre 150 y 230 palabras. Si con menos palabras suena mejor, utiliza menos.
 
 REGLAS DE CONTENIDO:
@@ -120,7 +143,7 @@ CV DEL CANDIDATO:
                         'format': {
                             'type': 'json_schema',
                             'name': 'cvprofit_cover_letter',
-                            'description': 'Carta de presentación profesional, natural, personal y en primera persona.',
+                            'description': 'Carta de presentación profesional, natural, personal, humana y variable en primera persona.',
                             'schema': schema,
                             'strict': True
                         }
@@ -165,7 +188,7 @@ CV DEL CANDIDATO:
             response = original_home(*args, **kwargs)
             body = response.get_data(as_text=True)
             if '/coverfix.js' not in body:
-                body = body.replace('</body>', '<script src="/coverfix.js?v=3"></script></body>')
+                body = body.replace('</body>', '<script src="/coverfix.js?v=4"></script></body>')
                 response.set_data(body)
                 response.headers.pop('Content-Length', None)
             return response
