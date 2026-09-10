@@ -136,6 +136,8 @@ RESPUESTA DEL CANDIDATO:
                 body = body.replace('</body>', '<script src="/interview.js?v=3"></script></body>')
             if '/pro.js' not in body:
                 body = body.replace('</body>', '<script src="/pro.js?v=4"></script></body>')
+            if '/profix.js' not in body:
+                body = body.replace('</body>', '<script src="/profix.js?v=1"></script></body>')
             if '/photo.js' not in body:
                 body = body.replace('</body>', '<script src="/photo.js?v=2"></script></body>')
             if '/templates.js' not in body:
@@ -164,6 +166,11 @@ RESPUESTA DEL CANDIDATO:
     def pro_js():
         from flask import send_from_directory
         return send_from_directory('.', 'pro.js', mimetype='application/javascript')
+
+    @app.get('/profix.js')
+    def profix_js():
+        from flask import send_from_directory
+        return send_from_directory('.', 'profix.js', mimetype='application/javascript')
 
     @app.get('/photo.js')
     def photo_js():
