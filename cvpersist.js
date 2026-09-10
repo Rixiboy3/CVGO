@@ -72,7 +72,7 @@
       const j=await r.json();
       if(!r.ok)throw j;
       const a=j.result||{},score=Math.max(0,Math.min(100,Number(a.score||0))),keywords=Array.isArray(a.keywords)?a.keywords:[];
-      box.innerHTML=`<div><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><b>Compatibilidad con esta oferta</b><div style="font-size:12px;color:#667085;margin-top:3px">Análisis ATS específico para el puesto</div></div><strong style="font-size:24px">${score}/100</strong></div><div class="scorebar"><i style="width:${score}%"></i></div><p style="font-size:13px;line-height:1.5">${escATS(a.summary||'')}</p>${keywords.length?`<div style="font-size:12px;line-height:1.7"><b>Palabras clave de la oferta:</b><br>${keywords.map(k=>`<span style="display:inline-block;padding:3px 7px;margin:3px;border-radius:5px;background:#eef2f6">${escATS(k)}</span>`).join('')}</div>`:''}<div style="margin-top:12px;padding:10px;border-radius:8px;background:#f8fafc;font-size:12px">💡 CVGO no inventa experiencia ni competencias: solo señala oportunidades respaldadas por tu CV.</div></div>`;
+      box.innerHTML=`<div><div style="display:flex;justify-content:space-between;align-items:center;gap:10px"><div><b>Compatibilidad con esta oferta</b><div style="font-size:12px;color:#667085;margin-top:3px">Análisis ATS específico para el puesto</div></div><strong style="font-size:24px">${score}/100</strong></div><div class="scorebar"><i style="width:${score}%"></i></div><p style="font-size:13px;line-height:1.5">${escATS(a.summary||'')}</p>${keywords.length?`<div style="font-size:12px;line-height:1.7"><b>Palabras clave de la oferta:</b><br>${keywords.map(k=>`<span style="display:inline-block;padding:3px 7px;margin:3px;border-radius:5px;background:#eef2f6">${escATS(k)}</span>`).join('')}</div>`:''}<div style="margin-top:12px;padding:10px;border-radius:8px;background:#f8fafc;font-size:12px">💡 CVProfit no inventa experiencia ni competencias: solo señala oportunidades respaldadas por tu CV.</div></div>`;
     }catch(e){
       const detail=String(e?.detail||'').trim();
       const code=String(e?.error||'').trim();
@@ -94,5 +94,5 @@
 (function(){
   if(document.getElementById('cvgoDashboardCss'))return;
   const link=document.createElement('link');link.id='cvgoDashboardCss';link.rel='stylesheet';link.href='/dashboard.css?v=1';document.head.appendChild(link);
-  const s=document.createElement('script');s.id='cvgoDashboardScript';s.src='/dashboard.js?v=1';s.defer=true;document.body.appendChild(s);
+  const s=document.createElement('script');s.id='cvgoDashboardScript';s.src='/dashboard.js?v=2';s.defer=true;document.body.appendChild(s);
 })();
