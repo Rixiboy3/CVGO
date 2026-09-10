@@ -8,7 +8,6 @@ from flask import request, g, make_response
 TRIAL_WINDOW_DAYS = 30
 MAX_TRIALS_PER_IP = 3
 
-# Known disposable/temporary email providers. This is intentionally a conservative list.
 TEMP_EMAIL_DOMAINS = {
     '10minutemail.com', '10minutemail.net', 'guerrillamail.com',
     'guerrillamail.net', 'guerrillamail.org', 'guerrillamail.de',
@@ -101,8 +100,6 @@ def _blocked_reason():
     ip = _client_ip()
     if _is_temp_email(email):
         return 'TEMP_EMAIL'
-
-    # A server-set HttpOnly marker is an additional browser-level signal.
     if request.cookies.get('cvprofit_trial_guard'):
         return 'DEVICE_TRIAL_USED'
 
@@ -133,7 +130,6 @@ def _blocked_reason():
         )
         if int((row or {}).get('count') or 0) >= MAX_TRIALS_PER_IP:
             return 'IP_TRIAL_LIMIT'
-
     return ''
 
 
@@ -142,20 +138,33 @@ def _record_trial():
     email = _email()
     device = _device_id()
     ip = _client_ip()
-    # Keep only the anti-abuse window we actually use.
     if app_module.DB_BACKEND == 'postgresql':
         app_module.db_execute("DELETE FROM trial_guards WHERE created_at < CURRENT_TIMESTAMP - INTERVAL '30 days'")
     else:
         app_module.db_execute("DELETE FROM trial_guards WHERE created_at < datetime('now','-30 days')")
     app_module.db_execute(
         "INSERT INTO trial_guards(device_hash,ip_hash,email_hash,created_at) VALUES(:device,:ip,:email,:created)",
-        {
-            'device': _hash(device) if device else None,
-            'ip': _hash(ip) if ip else None,
-            'email': _hash(email) if email else None,
-            'created': datetime.now(timezone.utc).isoformat(),
-        },
+        {'device': _hash(device) if device else None,'ip': _hash(ip) if ip else None,'email': _hash(email) if email else None,'created': datetime.now(timezone.utc).isoformat()},
     )
+
+
+def _seed_existing_login():
+    app_module = _app()
+    user = app_module.current_user()
+    if not user:
+        return
+    device = _device_id()
+    email = str(user.get('email') or '').strip().lower()
+    if not device or not email:
+        return
+    device_hash = _hash(device)
+    email_hash = _hash(email)
+    row = app_module.db_fetchone(
+        f"SELECT id FROM trial_guards WHERE (device_hash=:device OR email_hash=:email) AND {_recent_clause()} LIMIT 1",
+        {'device': device_hash, 'email': email_hash},
+    )
+    if not row:
+        _record_trial()
 
 
 def register_antifraud(app):
@@ -182,15 +191,12 @@ def register_antifraud(app):
         if request.path == '/api/register' and request.method == 'POST' and getattr(g, 'cvprofit_trial_registration', False) and response.status_code == 200:
             try:
                 _record_trial()
-                response.set_cookie(
-                    'cvprofit_trial_guard',
-                    secrets.token_urlsafe(24),
-                    max_age=TRIAL_WINDOW_DAYS * 86400,
-                    httponly=True,
-                    secure=app.config.get('SESSION_COOKIE_SECURE', True),
-                    samesite='Lax',
-                )
+                response.set_cookie('cvprofit_trial_guard',secrets.token_urlsafe(24),max_age=TRIAL_WINDOW_DAYS*86400,httponly=True,secure=app.config.get('SESSION_COOKIE_SECURE',True),samesite='Lax')
             except Exception:
-                # Registration must never fail because anti-abuse telemetry failed.
+                pass
+        elif request.path == '/api/login' and request.method == 'POST' and response.status_code == 200:
+            try:
+                _seed_existing_login()
+            except Exception:
                 pass
         return response
