@@ -4,7 +4,8 @@
     try{
       let id=localStorage.getItem(KEY);
       if(!id){
-        id=(crypto&&crypto.randomUUID)?crypto.randomUUID():'cvp-'+Date.now()+'-'+Math.random().toString(36).slice(2)+Math.random().toString(36).slice(2);
+        const c=window.crypto;
+        id=(c&&typeof c.randomUUID==='function')?c.randomUUID():'cvp-'+Date.now()+'-'+Math.random().toString(36).slice(2)+Math.random().toString(36).slice(2);
         localStorage.setItem(KEY,id);
       }
       return id;
