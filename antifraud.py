@@ -1,16 +1,14 @@
 import hashlib
 import re
 import secrets
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from flask import request, g, make_response
-from sqlalchemy import text
 
-# Trial abuse protection is intentionally based on hashed identifiers.
-# We do not store raw IP addresses or browser/device IDs.
 TRIAL_WINDOW_DAYS = 30
 MAX_TRIALS_PER_IP = 3
 
+# Known disposable/temporary email providers. This is intentionally a conservative list.
 TEMP_EMAIL_DOMAINS = {
     '10minutemail.com', '10minutemail.net', 'guerrillamail.com',
     'guerrillamail.net', 'guerrillamail.org', 'guerrillamail.de',
@@ -39,7 +37,6 @@ def _hash(value):
 
 
 def _client_ip():
-    # Render supplies the client IP through X-Forwarded-For.
     forwarded = request.headers.get('X-Forwarded-For', '')
     if forwarded:
         return forwarded.split(',')[0].strip()
@@ -64,7 +61,6 @@ def _is_temp_email(email):
     domain = email.rsplit('@', 1)[1].strip().lower()
     if domain in TEMP_EMAIL_DOMAINS:
         return True
-    # Catch common disposable subdomains without blocking normal providers.
     return bool(re.search(r'(temp|disposable|throwaway|guerrilla|10minute|mailinator)', domain))
 
 
@@ -106,6 +102,10 @@ def _blocked_reason():
     if _is_temp_email(email):
         return 'TEMP_EMAIL'
 
+    # A server-set HttpOnly marker is an additional browser-level signal.
+    if request.cookies.get('cvprofit_trial_guard'):
+        return 'DEVICE_TRIAL_USED'
+
     device_hash = _hash(device) if device else ''
     ip_hash = _hash(ip) if ip else ''
     email_hash = _hash(email) if email else ''
@@ -142,6 +142,11 @@ def _record_trial():
     email = _email()
     device = _device_id()
     ip = _client_ip()
+    # Keep only the anti-abuse window we actually use.
+    if app_module.DB_BACKEND == 'postgresql':
+        app_module.db_execute("DELETE FROM trial_guards WHERE created_at < CURRENT_TIMESTAMP - INTERVAL '30 days'")
+    else:
+        app_module.db_execute("DELETE FROM trial_guards WHERE created_at < datetime('now','-30 days')")
     app_module.db_execute(
         "INSERT INTO trial_guards(device_hash,ip_hash,email_hash,created_at) VALUES(:device,:ip,:email,:created)",
         {
@@ -186,6 +191,6 @@ def register_antifraud(app):
                     samesite='Lax',
                 )
             except Exception:
-                # Registration must never fail because the anti-abuse telemetry failed.
+                # Registration must never fail because anti-abuse telemetry failed.
                 pass
         return response
