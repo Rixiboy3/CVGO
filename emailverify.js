@@ -33,12 +33,21 @@
   function escapeHtml(s){return String(s).replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));}
 
   async function verifiedSubmit(){
-    if(typeof authMode!=='undefined' && authMode==='login'){
-      return originalSubmit ? originalSubmit.apply(window,arguments) : null;
-    }
     const email=(document.getElementById('authEmail')?.value||'').trim();
     const password=document.getElementById('authPass')?.value||'';
     if(!email||!password){msg('Introduce email y contraseña.');return;}
+    if(typeof authMode!=='undefined' && authMode==='login'){
+      try{
+        const r=await fetch('/api/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
+        const data=await r.json();
+        if(!r.ok)throw data;
+        if(typeof loadUser==='function')await loadUser();
+      }catch(e){
+        if(e.error==='EMAIL_NOT_VERIFIED')msg('Confirma tu correo antes de iniciar sesión. Revisa tu bandeja de entrada.');
+        else msg('Email o contraseña incorrectos.');
+      }
+      return;
+    }
     if(password.length<6){msg('La contraseña debe tener al menos 6 caracteres.');return;}
     try{
       const r=await fetch('/api/register',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,password})});
@@ -61,11 +70,8 @@
     window.submitAuth=verifiedSubmit;
     const params=new URLSearchParams(location.search);
     const state=params.get('verify');
-    if(state==='expired'){
-      setTimeout(()=>msg('El enlace de confirmación ha caducado. Puedes crear la cuenta de nuevo o solicitar otro correo.'),300);
-    }else if(state==='invalid'){
-      setTimeout(()=>msg('El enlace de confirmación no es válido o ya ha sido utilizado.'),300);
-    }
+    if(state==='expired')setTimeout(()=>msg('El enlace de confirmación ha caducado. Puedes crear la cuenta de nuevo o solicitar otro correo.'),300);
+    else if(state==='invalid')setTimeout(()=>msg('El enlace de confirmación no es válido o ya ha sido utilizado.'),300);
   }
 
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
