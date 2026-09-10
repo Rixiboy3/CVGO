@@ -95,10 +95,7 @@ def _send_email(email, token):
 
 def _create_token(user_id):
     app_module = _app()
-    existing = app_module.db_fetchone(
-        "SELECT created_at FROM email_verification_tokens WHERE user_id=:uid AND used_at IS NULL ORDER BY id DESC LIMIT 1",
-        {'uid': user_id},
-    )
+    existing = app_module.db_fetchone("SELECT created_at FROM email_verification_tokens WHERE user_id=:uid AND used_at IS NULL ORDER BY id DESC LIMIT 1", {'uid': user_id})
     if existing and existing.get('created_at'):
         try:
             created = datetime.fromisoformat(str(existing['created_at']).replace('Z','+00:00'))
@@ -108,14 +105,10 @@ def _create_token(user_id):
                 raise RuntimeError('VERIFY_RATE_LIMIT')
         except ValueError:
             pass
-
     app_module.db_execute('DELETE FROM email_verification_tokens WHERE user_id=:uid AND used_at IS NULL', {'uid': user_id})
     token = secrets.token_urlsafe(32)
     expires = datetime.now(timezone.utc) + timedelta(minutes=TOKEN_MINUTES)
-    app_module.db_execute(
-        'INSERT INTO email_verification_tokens(user_id,token_hash,expires_at,created_at) VALUES(:uid,:hash,:expires,:created)',
-        {'uid': user_id, 'hash': _hash_token(token), 'expires': expires.isoformat(), 'created': datetime.now(timezone.utc).isoformat()},
-    )
+    app_module.db_execute('INSERT INTO email_verification_tokens(user_id,token_hash,expires_at,created_at) VALUES(:uid,:hash,:expires,:created)', {'uid': user_id, 'hash': _hash_token(token), 'expires': expires.isoformat(), 'created': datetime.now(timezone.utc).isoformat()})
     return token
 
 
@@ -130,18 +123,16 @@ def _issue_and_send(user):
 
 def _record_verified_trial(user):
     app_module = _app()
-    email_hash = hashlib.sha256(_secret() + b'|antifraud-email|' + str(user.get('email') or '').strip().lower().encode('utf-8')).hexdigest()
+    import antifraud
+    email = str(user.get('email') or '').strip().lower()
     ip = request.headers.get('X-Forwarded-For', '').split(',')[0].strip() if request.headers.get('X-Forwarded-For') else (request.remote_addr or '')
-    ip_hash = hashlib.sha256(_secret() + b'|antifraud-ip|' + ip.encode('utf-8')).hexdigest() if ip else None
     device = str(request.headers.get('X-CVProfit-Device') or '').strip()[:200]
-    device_hash = hashlib.sha256(_secret() + b'|antifraud-device|' + device.encode('utf-8')).hexdigest() if device else None
-    app_module.db_execute('INSERT INTO trial_guards(device_hash,ip_hash,email_hash,created_at) VALUES(:device,:ip,:email,:created)', {'device':device_hash,'ip':ip_hash,'email':email_hash,'created':datetime.now(timezone.utc).isoformat()})
+    app_module.db_execute('INSERT INTO trial_guards(device_hash,ip_hash,email_hash,created_at) VALUES(:device,:ip,:email,:created)', {'device':antifraud._hash(device) if device else None,'ip':antifraud._hash(ip) if ip else None,'email':antifraud._hash(email) if email else None,'created':datetime.now(timezone.utc).isoformat()})
 
 
 def register_email_verification(app):
     _ensure_schema()
     app_module = _app()
-
     original_register = app.view_functions.get('register')
     original_login = app.view_functions.get('login')
 
