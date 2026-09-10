@@ -235,3 +235,7 @@ CV DEL CANDIDATO:
     def coverfix_js():
         from flask import send_from_directory
         return send_from_directory('.', 'coverfix.js', mimetype='application/javascript')
+
+# Mandatory email verification loads after the main application routes.
+import emailverify
+emailverify.register_email_verification(__import__('app').app)
