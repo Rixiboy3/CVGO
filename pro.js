@@ -72,7 +72,7 @@
       ${active?`<div class="cvgoManage"><strong>Plan ${plan}</strong>${end?` · Próxima fecha de renovación: ${end}`:''}<br><span>${billing.cancel_at_period_end?'Tu suscripción está programada para finalizar al terminar el periodo actual.':'Tu suscripción se renovará automáticamente.'}</span>${!billing.cancel_at_period_end?`<br><button id="cvgoCancel">Cancelar renovación</button>`:`<div class="cvgoCancelWarn">La renovación automática está cancelada.</div>`}</div>`:''}
       ${!active?`<div class="cvgoPlans">
         <div class="cvgoPlan"><h3>Mensual</h3><div class="cvgoPrice">9,99 € <small>/ mes</small></div><p>Flexibilidad total. Cancela cuando quieras.</p>${planButton('cvgoMonthly','monthly',trial?'Disponible al finalizar la prueba':'Continuar con 9,99 €/mes')}</div>
-        <div class="cvgoPlan best"><span class="tag">MEJOR PRECIO</span><h3>Anual</h3><div class="cvgoPrice">59,99 € <small>/ año</small></div><p>Solo 5 € al mes. Ahorra 49,89 € frente al mensual.</p>${planButton('cvgoAnnual','annual',trial?'Disponible al finalizar la prueba':'Continuar con 59,99 €/año')}</div>
+        <div class="cvgoPlan best"><span class="tag">MEJOR PRECIO</span><h3>Anual</h3><div class="cvgoPrice">59,99 € <small>/ año</small></div><p>Solo 5 € al mes. Ahorra 59,89 € frente al mensual.</p>${planButton('cvgoAnnual','annual',trial?'Disponible al finalizar la prueba':'Continuar con 59,99 €/año')}</div>
       </div>`:''}
       <ul class="cvgoBenefits"><li>CV ilimitados</li><li>Adaptación a ofertas con IA</li><li>Optimización ATS</li><li>Cartas de presentación</li><li>Simulador de entrevistas IA</li><li>Respuestas por voz y evaluación personalizada</li></ul>
       <div id="cvgoProMsg"></div><button id="cvgoProClose">Cerrar</button>
