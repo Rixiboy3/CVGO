@@ -237,6 +237,19 @@ def test_expire_trial():
     return jsonify(ok=True, trial_expired=True)
 
 
+@app.get('/api/test-expire-trial')
+def test_expire_trial():
+    # Temporary test route: expires only the currently logged-in test account.
+    u = current_user()
+    if not u:
+        return jsonify(ok=False, error='LOGIN_REQUIRED'), 401
+    if os.getenv('CVGO_TEST_MODE', '0') != '1':
+        return jsonify(ok=False, error='TEST_MODE_DISABLED'), 404
+    expired = (now() - timedelta(days=4)).isoformat()
+    db_execute('UPDATE users SET trial_started_at=:trial WHERE id=:id', {'trial': expired, 'id': u['id']})
+    return jsonify(ok=True, trial_expired=True)
+
+
 @app.post('/api/logout')
 def logout():
     session.clear()
