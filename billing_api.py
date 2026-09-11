@@ -404,3 +404,7 @@ def register_billing(app):
 
 
 register_billing(__import__('app').app)
+# Register the PDF CV importer during normal application startup.
+# app.py imports billing_api after the Flask app is created, so this keeps
+# the importer route available without changing the main application file.
+import cv_import_api
