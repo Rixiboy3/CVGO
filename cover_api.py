@@ -177,65 +177,38 @@ CV DEL CANDIDATO:
                 response = client.responses.create(
                     model=model,
                     input=prompt,
-                    text={
-                        'format': {
-                            'type': 'json_schema',
-                            'name': 'cvprofit_cover_letter',
-                            'description': 'Carta de presentación personal, natural, humana y variable en primera persona.',
-                            'schema': schema,
-                            'strict': True
-                        }
-                    }
+                    text={'format': {'type': 'json_schema','name': 'cvprofit_cover_letter','description': 'Carta de presentación personal, natural, humana y variable en primera persona.','schema': schema,'strict': True}}
                 )
                 if getattr(response, 'status', None) == 'incomplete':
                     raise RuntimeError('AI_INCOMPLETE_RESPONSE')
                 result = json.loads(getattr(response, 'output_text', '') or '{}')
                 letter = str(result.get('letter') or '').strip()
-                if not letter:
-                    raise ValueError('Carta vacía')
-
-                name = str(profile.get('name') or '').strip()
-                lowered = letter.lower()
-                forbidden = [
-                    'el candidato', 'la candidata', 'el/la candidato',
-                    'cuenta con experiencia', 'está preparado/a',
-                    'esta preparado/a', 'está preparado para',
-                    'esta preparado para'
-                ]
-                if any(x in lowered for x in forbidden):
-                    raise ValueError('THIRD_PERSON_LETTER')
+                if not letter: raise ValueError('Carta vacía')
+                name = str(profile.get('name') or '').strip(); lowered = letter.lower()
+                forbidden = ['el candidato','la candidata','el/la candidato','cuenta con experiencia','está preparado/a','esta preparado/a','está preparado para','esta preparado para']
+                if any(x in lowered for x in forbidden): raise ValueError('THIRD_PERSON_LETTER')
                 if name and name.lower() in lowered:
-                    body_without_signature = lowered.rsplit(name.lower(), 1)[0]
-                    if name.lower() in body_without_signature:
-                        raise ValueError('NAME_USED_IN_BODY')
-
+                    body_without_signature = lowered.rsplit(name.lower(),1)[0]
+                    if name.lower() in body_without_signature: raise ValueError('NAME_USED_IN_BODY')
                 return jsonify(ok=True, letter=letter, model=model)
-            except json.JSONDecodeError as e:
-                last_error = f'AI_INVALID_RESPONSE: {e}'
-            except Exception as e:
-                last_error = str(e)
-            if attempt < 3:
-                time.sleep(attempt * 1.5)
-
-        return jsonify(ok=False, error='AI_REQUEST_FAILED', detail=(last_error or 'unknown')[:300], retryable=True), 502
+            except json.JSONDecodeError as e: last_error=f'AI_INVALID_RESPONSE: {e}'
+            except Exception as e: last_error=str(e)
+            if attempt < 3: time.sleep(attempt * 1.5)
+        return jsonify(ok=False,error='AI_REQUEST_FAILED',detail=(last_error or 'unknown')[:300],retryable=True),502
 
     original_home = app.view_functions.get('home')
     if original_home:
         def home_with_cover(*args, **kwargs):
-            response = original_home(*args, **kwargs)
-            body = response.get_data(as_text=True)
+            response = original_home(*args, **kwargs); body=response.get_data(as_text=True)
             if '/coverfix.js' not in body:
-                body = body.replace('</body>', '<script src="/coverfix.js?v=5"></script></body>')
-                response.set_data(body)
-                response.headers.pop('Content-Length', None)
+                body=body.replace('</body>','<script src="/coverfix.js?v=5"></script></body>');response.set_data(body);response.headers.pop('Content-Length',None)
             return response
-        app.view_functions['home'] = home_with_cover
+        app.view_functions['home']=home_with_cover
 
     @app.get('/coverfix.js')
     def coverfix_js():
         from flask import send_from_directory
-        return send_from_directory('.', 'coverfix.js', mimetype='application/javascript')
+        return send_from_directory('.','coverfix.js',mimetype='application/javascript')
 
-# Mandatory email verification loads after the main application routes.
-import emailverify
-emailverify.register_email_verification(__import__('app').app)
+# Load the CV PDF importer after all cover routes are registered.
+import cv_import_api
