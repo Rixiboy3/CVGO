@@ -31,11 +31,6 @@ def register_billing(app):
             return {}
 
     def period_end_value(subscription):
-        """Return the renewal timestamp from old or new Stripe shapes.
-
-        Newer Stripe API versions expose the billing period on subscription
-        items, while older versions expose it directly on the subscription.
-        """
         s = as_dict(subscription)
         value = s.get('current_period_end')
         if value:
@@ -88,17 +83,11 @@ def register_billing(app):
         sub_id = s.get('id')
         if not sub_id:
             return False
-        row = app_module.db_fetchone(
-            'SELECT id,user_id FROM purchases WHERE subscription_id=:sid ORDER BY id DESC LIMIT 1',
-            {'sid': sub_id}
-        )
+        row = app_module.db_fetchone('SELECT id,user_id FROM purchases WHERE subscription_id=:sid ORDER BY id DESC LIMIT 1', {'sid': sub_id})
         if not row and fallback_email:
             u = find_user(email=fallback_email)
             if u:
-                row = app_module.db_fetchone(
-                    'SELECT id,user_id FROM purchases WHERE user_id=:uid ORDER BY id DESC LIMIT 1',
-                    {'uid': u['id']}
-                )
+                row = app_module.db_fetchone('SELECT id,user_id FROM purchases WHERE user_id=:uid ORDER BY id DESC LIMIT 1', {'uid': u['id']})
         if not row:
             return False
         status = str(s.get('status') or '').lower()
@@ -120,7 +109,6 @@ def register_billing(app):
         sub = None
         if row.get('subscription_id'):
             sub = st.Subscription.retrieve(row['subscription_id'])
-
         if not sub and row.get('stripe_customer_id'):
             subs = st.Subscription.list(customer=row['stripe_customer_id'], status='all', limit=20)
             candidates = [as_dict(x) for x in getattr(subs, 'data', [])]
@@ -128,7 +116,6 @@ def register_billing(app):
             if candidates:
                 candidates.sort(key=lambda x: period_end_value(x) or 0, reverse=True)
                 sub = candidates[0]
-
         if not sub and row.get('stripe_session_id'):
             checkout_session = st.checkout.Session.retrieve(row['stripe_session_id'])
             session_data = as_dict(checkout_session)
@@ -137,7 +124,6 @@ def register_billing(app):
                 sub = sub_ref
             elif sub_ref:
                 sub = st.Subscription.retrieve(str(sub_ref))
-
         if not sub and row.get('user_id'):
             user = app_module.db_fetchone('SELECT email FROM users WHERE id=:id', {'id': row['user_id']})
             email = str((user or {}).get('email') or '').strip().lower()
@@ -184,7 +170,7 @@ def register_billing(app):
         except Exception:
             return row
 
-    def active_subscription(user):
+    def active_subscription(user, live=False):
         if not user:
             return None
         row = app_module.db_fetchone("""SELECT * FROM purchases
@@ -193,18 +179,20 @@ def register_billing(app):
           ORDER BY id DESC LIMIT 1""", {'uid': user['id']})
         if not row:
             return None
-        row = live_reconcile(row)
-        return app_module.db_fetchone("""SELECT * FROM purchases
-          WHERE id=:id AND status IN ('paid','active')
-          AND (subscription_status IS NULL OR subscription_status IN ('active','trialing','past_due'))""", {'id': row['id']})
+        if live:
+            row = live_reconcile(row)
+            return app_module.db_fetchone("""SELECT * FROM purchases
+              WHERE id=:id AND status IN ('paid','active')
+              AND (subscription_status IS NULL OR subscription_status IN ('active','trialing','past_due'))""", {'id': row['id']})
+        return row
 
-    def billing_state(user):
+    def billing_state(user, live=False):
         if not user:
             return {'active': False, 'trial': False, 'plan': None, 'status': None, 'cancel_at_period_end': False, 'current_period_end': None}
         trial_active, trial_end, _ = app_module.trial_info(user)
         if trial_active:
             return {'active': True, 'trial': True, 'plan': None, 'status': 'trialing', 'cancel_at_period_end': False, 'current_period_end': trial_end.isoformat()}
-        row = active_subscription(user)
+        row = active_subscription(user, live=live)
         if not row:
             return {'active': False, 'trial': False, 'plan': None, 'status': None, 'cancel_at_period_end': False, 'current_period_end': None}
         return {
@@ -222,7 +210,7 @@ def register_billing(app):
         trial_active, _, _ = app_module.trial_info(user)
         if trial_active:
             return True
-        return bool(active_subscription(user))
+        return bool(active_subscription(user, live=False))
 
     app_module.is_pro_user = real_is_pro
 
@@ -323,7 +311,7 @@ def register_billing(app):
             saved = save_subscription(s)
             if not saved:
                 return app_module.jsonify(ok=False, error='SUBSCRIPTION_NOT_SAVED'), 502
-            return app_module.jsonify(ok=True, pro=real_is_pro(user), billing=billing_state(user))
+            return app_module.jsonify(ok=True, pro=real_is_pro(user), billing=billing_state(user, live=False))
         except Exception as e:
             return app_module.jsonify(ok=False, error='CHECKOUT_VERIFY_FAILED', detail=str(e)[:300]), 502
 
@@ -332,7 +320,7 @@ def register_billing(app):
         user = app_module.current_user()
         if not user:
             return app_module.jsonify(ok=False, error='LOGIN_REQUIRED'), 401
-        return app_module.jsonify(ok=True, **billing_state(user))
+        return app_module.jsonify(ok=True, **billing_state(user, live=True))
 
     @app.post('/api/cancel-subscription')
     def cancel_subscription():
@@ -342,13 +330,13 @@ def register_billing(app):
             return app_module.jsonify(ok=False, error='LOGIN_REQUIRED'), 401
         if not st:
             return app_module.jsonify(ok=False, error='STRIPE_NOT_CONFIGURED'), 503
-        row = active_subscription(user)
+        row = active_subscription(user, live=True)
         if not row or not row.get('subscription_id'):
             return app_module.jsonify(ok=False, error='NO_ACTIVE_SUBSCRIPTION'), 404
         try:
             sub = st.Subscription.modify(row['subscription_id'], cancel_at_period_end=True)
             update_subscription(sub)
-            return app_module.jsonify(ok=True, **billing_state(user))
+            return app_module.jsonify(ok=True, **billing_state(user, live=False))
         except Exception as e:
             return app_module.jsonify(ok=False, error='CANCEL_FAILED', detail=str(e)[:250]), 502
 
@@ -391,7 +379,7 @@ def register_billing(app):
             if not user:
                 return app_module.jsonify(logged_in=False)
             active, _, days = app_module.trial_info(user)
-            state = billing_state(user)
+            state = billing_state(user, live=False)
             return app_module.jsonify(logged_in=True, email=user['email'], trial_active=active, trial_days_left=days, pro=real_is_pro(user), billing=state)
         replace('me', me_v2)
 
@@ -399,12 +387,9 @@ def register_billing(app):
     if original_verify:
         def verify_v2():
             user = app_module.current_user()
-            return app_module.jsonify(ok=True, pro=real_is_pro(user), billing=billing_state(user))
+            return app_module.jsonify(ok=True, pro=real_is_pro(user), billing=billing_state(user, live=False))
         replace('verify', verify_v2)
 
 
 register_billing(__import__('app').app)
-# Register the PDF CV importer during normal application startup.
-# app.py imports billing_api after the Flask app is created, so this keeps
-# the importer route available without changing the main application file.
 import cv_import_api
