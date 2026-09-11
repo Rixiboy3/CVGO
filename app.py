@@ -50,7 +50,7 @@ def init_db():
     else:
         db_execute("""CREATE TABLE IF NOT EXISTS users(id INTEGER PRIMARY KEY AUTOINCREMENT,email TEXT UNIQUE NOT NULL,password_hash TEXT NOT NULL,trial_started_at TEXT NOT NULL,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
         db_execute("""CREATE TABLE IF NOT EXISTS purchases(id INTEGER PRIMARY KEY AUTOINCREMENT,user_id INTEGER NOT NULL,payment_intent TEXT,amount INTEGER,currency TEXT,status TEXT NOT NULL,stripe_session_id TEXT UNIQUE NOT NULL,created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,FOREIGN KEY(user_id) REFERENCES users(id))""")
-        db_execute("""CREATE TABLE IF NOT EXISTS cv_data(user_id INTEGER PRIMARY KEY,data TEXT NOT NULL DEFAULT '{}',updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,FOREIGN KEY(user_id) REFERENCES users(id))""")
+        db_execute("""CREATE TABLE IF NOT EXISTS cv_data(user_id INTEGER PRIMARY KEY REFERENCES users(id),data TEXT NOT NULL DEFAULT '{}',updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP)""")
 
 def now(): return datetime.now(timezone.utc)
 def parse_dt(v): return datetime.fromisoformat(str(v).replace('Z','+00:00'))
@@ -82,7 +82,7 @@ def save_paid(s):
 @app.get('/')
 def home():
     html=open('index.html',encoding='utf-8').read()
-    html=html.replace('</body>','<script src="/ai.js?v=3"></script><script src="/cvpersist.js?v=3"></script><script src="/profix.js?v=1"></script></body>')
+    html=html.replace('</body>','<script src="/ai.js?v=3"></script><script src="/cvpersist.js?v=3"></script><script src="/profix.js?v=2"></script></body>')
     return Response(html,mimetype='text/html')
 @app.get('/ai.js')
 def ai_js(): return send_from_directory('.','ai.js',mimetype='application/javascript')
