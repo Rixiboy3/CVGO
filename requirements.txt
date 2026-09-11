@@ -4,3 +4,4 @@ gunicorn>=23.0
 openai>=2.45.0
 SQLAlchemy>=2.0
 psycopg[binary]>=3.2
+pypdf>=6.0
