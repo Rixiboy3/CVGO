@@ -9,6 +9,14 @@
     const education=[...document.querySelectorAll('#education .item')].map(x=>({title:x.querySelector('.etitle')?.value||'',school:x.querySelector('.eschool')?.value||'',year:x.querySelector('.eyear')?.value||''}));
     return {name:$('name')?.value||'',role:$('role')?.value||'',email:$('email')?.value||'',phone:$('phone')?.value||'',city:$('city')?.value||'',linkedin:$('linkedin')?.value||'',summary:$('summary')?.value||'',skills:$('skills')?.value||'',experience,education,template:window.tpl||'classic',photo:window.cvgoPhotoData||''};
   };
+  const hasMeaningfulData=d=>{
+    if(!d)return false;
+    const fields=['name','role','phone','city','linkedin','summary','skills'];
+    if(fields.some(k=>String(d[k]||'').trim()))return true;
+    if((d.experience||[]).some(hasExpData))return true;
+    if((d.education||[]).some(hasEduData))return true;
+    return Boolean(String(d.photo||'').trim());
+  };
   const apply=d=>{
     if(!d)return;
     ['name','role','email','phone','city','linkedin','summary','skills'].forEach(id=>{if($(id)&&d[id]!=null)$(id).value=d[id]});
@@ -24,13 +32,18 @@
   let timer=null,loading=false,dirty=false;
   async function save(){
     if(!getEmail())return false;
+    const snapshot=read();
+    if(!hasMeaningfulData(snapshot)){
+      setSaveStatus('No se guarda un CV vacío');
+      return false;
+    }
     if(loading){dirty=true;return false;}
-    try{const r=await fetch('/api/cv',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(read())});if(r.ok){dirty=false;setSaveStatus('Guardado');return true}setSaveStatus('Error al guardar');return false}catch(e){setSaveStatus('Error al guardar');return false}
+    try{const r=await fetch('/api/cv',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify(snapshot)});if(r.ok){dirty=false;setSaveStatus('Guardado');return true}setSaveStatus('Error al guardar');return false}catch(e){setSaveStatus('Error al guardar');return false}
   }
   async function load(){
     if(loading)return;
     loading=true;
-    try{const r=await fetch('/api/cv',{credentials:'same-origin'});if(!r.ok)return;const j=await r.json();if(j.ok&&j.data&&Object.keys(j.data).length)apply(j.data)}catch(e){}
+    try{const r=await fetch('/api/cv',{credentials:'same-origin'});if(!r.ok)return;const j=await r.json();if(j.ok&&j.data&&Object.keys(j.data).length){apply(j.data);dirty=false}}catch(e){}
     finally{loading=false;if(dirty){clearTimeout(timer);timer=setTimeout(()=>save(),300)}}
   }
   function scheduleSave(){clearTimeout(timer);timer=setTimeout(()=>save(),700)}
@@ -49,7 +62,7 @@
     if(header&&!$('cvgoLogoutBtn')){const b=document.createElement('button');b.id='cvgoLogoutBtn';b.type='button';b.textContent='Cerrar sesión';b.style.cssText='margin-left:16px;border:0;background:#111827;color:#fff;border-radius:9px;padding:8px 14px;cursor:pointer;font-size:12px;font-weight:700;box-shadow:0 2px 8px rgba(16,24,40,.12)';b.onclick=async()=>{await save();try{await fetch('/api/logout',{method:'POST',credentials:'same-origin'})}catch(e){}try{sessionStorage.removeItem('cvgo_user_email')}catch(e){}location.reload()};header.appendChild(b)}
   }
   document.addEventListener('input',()=>{const email=($('email')?.value||'').trim().toLowerCase();if(email){try{sessionStorage.setItem('cvgo_user_email',email)}catch(e){}}dirty=true;scheduleSave()},true);
-  window.addEventListener('beforeunload',()=>{try{navigator.sendBeacon('/api/cv',new Blob([JSON.stringify(read())],{type:'application/json'}))}catch(e){}});
+  window.addEventListener('beforeunload',()=>{try{const snapshot=read();if(dirty&&hasMeaningfulData(snapshot))navigator.sendBeacon('/api/cv',new Blob([JSON.stringify(snapshot)],{type:'application/json'}))}catch(e){}});
   window.cvgoServerSave=save;
   const original=window.loadUser;
   if(typeof original==='function')window.loadUser=async function(){const result=await original.apply(this,arguments);const m=await fetch('/api/me',{credentials:'same-origin'}).then(x=>x.json()).catch(()=>({}));if(m.logged_in){try{sessionStorage.setItem('cvgo_user_email',m.email||'')}catch(e){}addControls();await load()}else{const b=$('cvgoLogoutBtn');if(b)b.remove()}return result};
