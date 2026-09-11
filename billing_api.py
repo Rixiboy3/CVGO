@@ -14,7 +14,6 @@ def register_billing(app):
         return stripe
 
     def as_dict(obj):
-        """Normalize Stripe API objects to plain dictionaries."""
         if obj is None:
             return {}
         if isinstance(obj, Mapping):
@@ -74,21 +73,16 @@ def register_billing(app):
         period_end = s.get('current_period_end')
         period_text = datetime.fromtimestamp(period_end, timezone.utc).isoformat() if period_end else None
         app_module.db_execute("""UPDATE purchases SET status=:status,subscription_status=:substatus,
-          current_period_end=:period_end,cancel_at_period_end=:cancel
+          current_period_end=:period_end,cancel_at_period_end=:cancel,subscription_id=:sid,
+          stripe_customer_id=:customer
           WHERE id=:id""", {
             'status': paid_status, 'substatus': status, 'period_end': period_text,
-            'cancel': 1 if s.get('cancel_at_period_end') else 0, 'id': row['id']
+            'cancel': 1 if s.get('cancel_at_period_end') else 0, 'sid': sub_id,
+            'customer': s.get('customer'), 'id': row['id']
         })
         return True
 
     def live_reconcile(row):
-        """Refresh a stored subscription directly from Stripe.
-
-        Webhooks are the normal source of truth, but this fallback makes the UI
-        correct even when a webhook is delayed, missed, or being retried.
-        Older purchases are also repaired when only the Stripe customer or
-        checkout session identifier was stored.
-        """
         if not row:
             return row
         st = stripe_client()
@@ -96,21 +90,47 @@ def register_billing(app):
             return row
         try:
             sub = None
+            # 1. Best source: stored Stripe subscription ID.
             if row.get('subscription_id'):
                 sub = st.Subscription.retrieve(row['subscription_id'])
-            elif row.get('stripe_customer_id'):
-                subs = st.Subscription.list(customer=row['stripe_customer_id'], status='all', limit=10)
+
+            # 2. If the subscription ID is missing, use the stored customer ID.
+            if not sub and row.get('stripe_customer_id'):
+                subs = st.Subscription.list(customer=row['stripe_customer_id'], status='all', limit=20)
                 candidates = [as_dict(x) for x in getattr(subs, 'data', [])]
                 candidates = [x for x in candidates if str(x.get('status') or '').lower() in ('active', 'trialing', 'past_due')]
                 if candidates:
                     candidates.sort(key=lambda x: x.get('current_period_end') or 0, reverse=True)
                     sub = candidates[0]
-            elif row.get('stripe_session_id'):
-                session = st.checkout.Session.retrieve(row['stripe_session_id'])
-                session_data = as_dict(session)
-                sid = session_data.get('subscription')
-                if sid:
-                    sub = st.Subscription.retrieve(sid)
+
+            # 3. Legacy purchases: recover the subscription from the Checkout Session.
+            if not sub and row.get('stripe_session_id'):
+                checkout_session = st.checkout.Session.retrieve(row['stripe_session_id'])
+                session_data = as_dict(checkout_session)
+                sub_ref = session_data.get('subscription')
+                if isinstance(sub_ref, Mapping):
+                    sub = sub_ref
+                elif sub_ref:
+                    sub = st.Subscription.retrieve(str(sub_ref))
+
+            # 4. Last fallback: find the customer's active subscription by email.
+            if not sub and row.get('user_id'):
+                user = app_module.db_fetchone('SELECT email FROM users WHERE id=:id', {'id': row['user_id']})
+                email = str((user or {}).get('email') or '').strip().lower()
+                if email:
+                    customers = st.Customer.list(email=email, limit=10)
+                    customer_ids = [as_dict(c).get('id') for c in getattr(customers, 'data', [])]
+                    for customer_id in customer_ids:
+                        if not customer_id:
+                            continue
+                        subs = st.Subscription.list(customer=customer_id, status='all', limit=20)
+                        candidates = [as_dict(x) for x in getattr(subs, 'data', [])]
+                        candidates = [x for x in candidates if str(x.get('status') or '').lower() in ('active', 'trialing', 'past_due')]
+                        if candidates:
+                            candidates.sort(key=lambda x: x.get('current_period_end') or 0, reverse=True)
+                            sub = candidates[0]
+                            break
+
             if not sub:
                 return row
 
@@ -134,7 +154,6 @@ def register_billing(app):
             refreshed = app_module.db_fetchone('SELECT * FROM purchases WHERE id=:id', {'id': row['id']})
             return refreshed or row
         except Exception:
-            # A temporary Stripe/API failure must not take the whole app down.
             return row
 
     def active_subscription(user):
@@ -142,20 +161,18 @@ def register_billing(app):
             return None
         row = app_module.db_fetchone("""SELECT * FROM purchases
           WHERE user_id=:uid AND status IN ('paid','active')
-          AND (subscription_status IS NULL OR subscription_status IN ('active','trialing'))
+          AND (subscription_status IS NULL OR subscription_status IN ('active','trialing','past_due'))
           ORDER BY id DESC LIMIT 1""", {'uid': user['id']})
         if not row:
             return None
         row = live_reconcile(row)
-        # Re-check the database after reconciliation. If Stripe says the
-        # subscription is canceled, it will no longer qualify as active.
         return app_module.db_fetchone("""SELECT * FROM purchases
           WHERE id=:id AND status IN ('paid','active')
-          AND (subscription_status IS NULL OR subscription_status IN ('active','trialing'))""", {'id': row['id']})
+          AND (subscription_status IS NULL OR subscription_status IN ('active','trialing','past_due'))""", {'id': row['id']})
 
     def billing_state(user):
         if not user:
-            return {'active': False, 'plan': None, 'status': None, 'cancel_at_period_end': False, 'current_period_end': None}
+            return {'active': False, 'trial': False, 'plan': None, 'status': None, 'cancel_at_period_end': False, 'current_period_end': None}
         trial_active, trial_end, _ = app_module.trial_info(user)
         if trial_active:
             return {'active': True, 'trial': True, 'plan': None, 'status': 'trialing', 'cancel_at_period_end': False, 'current_period_end': trial_end.isoformat()}
@@ -196,11 +213,10 @@ def register_billing(app):
         plan = metadata.get('plan') or 'monthly'
         current_period_end = None
         try:
-            sub_id = s.get('subscription')
             if sub_id:
                 st = stripe_client()
                 if st:
-                    sub_obj = st.Subscription.retrieve(sub_id)
+                    sub_obj = st.Subscription.retrieve(str(sub_id))
                     sub_data = as_dict(sub_obj)
                     period_end = sub_data.get('current_period_end')
                     if period_end:
