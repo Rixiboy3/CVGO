@@ -57,13 +57,66 @@ def register_billing(app):
             return app_module.db_fetchone('SELECT * FROM users WHERE email=:email', {'email': email.lower()})
         return None
 
+    def update_subscription(sub, fallback_email=''):
+        s = as_dict(sub)
+        sub_id = s.get('id')
+        if not sub_id:
+            return False
+        row = app_module.db_fetchone('SELECT id,user_id FROM purchases WHERE subscription_id=:sid ORDER BY id DESC LIMIT 1', {'sid': sub_id})
+        if not row and fallback_email:
+            u = find_user(email=fallback_email)
+            if u:
+                row = app_module.db_fetchone('SELECT id,user_id FROM purchases WHERE user_id=:uid ORDER BY id DESC LIMIT 1', {'uid': u['id']})
+        if not row:
+            return False
+        status = str(s.get('status') or '').lower()
+        paid_status = 'paid' if status in ('active', 'trialing', 'past_due') else 'canceled'
+        period_end = s.get('current_period_end')
+        period_text = datetime.fromtimestamp(period_end, timezone.utc).isoformat() if period_end else None
+        app_module.db_execute("""UPDATE purchases SET status=:status,subscription_status=:substatus,
+          current_period_end=:period_end,cancel_at_period_end=:cancel
+          WHERE id=:id""", {
+            'status': paid_status, 'substatus': status, 'period_end': period_text,
+            'cancel': 1 if s.get('cancel_at_period_end') else 0, 'id': row['id']
+        })
+        return True
+
+    def live_reconcile(row):
+        """Refresh a stored subscription directly from Stripe.
+
+        Webhooks are the normal source of truth, but this fallback makes the UI
+        correct even when a webhook is delayed, missed, or being retried.
+        """
+        if not row or not row.get('subscription_id'):
+            return row
+        st = stripe_client()
+        if not st:
+            return row
+        try:
+            sub = st.Subscription.retrieve(row['subscription_id'])
+            s = as_dict(sub)
+            update_subscription(s)
+            refreshed = app_module.db_fetchone('SELECT * FROM purchases WHERE id=:id', {'id': row['id']})
+            return refreshed or row
+        except Exception:
+            # A temporary Stripe/API failure must not take the whole app down.
+            return row
+
     def active_subscription(user):
         if not user:
             return None
-        return app_module.db_fetchone("""SELECT * FROM purchases
+        row = app_module.db_fetchone("""SELECT * FROM purchases
           WHERE user_id=:uid AND status IN ('paid','active')
           AND (subscription_status IS NULL OR subscription_status IN ('active','trialing'))
           ORDER BY id DESC LIMIT 1""", {'uid': user['id']})
+        if not row:
+            return None
+        row = live_reconcile(row)
+        # Re-check the database after reconciliation. If Stripe says the
+        # subscription is canceled, it will no longer qualify as active.
+        return app_module.db_fetchone("""SELECT * FROM purchases
+          WHERE id=:id AND status IN ('paid','active')
+          AND (subscription_status IS NULL OR subscription_status IN ('active','trialing'))""", {'id': row['id']})
 
     def billing_state(user):
         if not user:
@@ -122,30 +175,6 @@ def register_billing(app):
             app_module.db_execute("""INSERT INTO purchases(user_id,stripe_session_id,payment_intent,amount,currency,status,
               subscription_id,stripe_customer_id,plan,subscription_status,cancel_at_period_end)
               VALUES(:uid,:sid,:pi,:amount,:currency,:status,:subid,:customer,:plan,'active',0)""", params)
-        return True
-
-    def update_subscription(sub, fallback_email=''):
-        s = as_dict(sub)
-        sub_id = s.get('id')
-        if not sub_id:
-            return False
-        row = app_module.db_fetchone('SELECT id,user_id FROM purchases WHERE subscription_id=:sid ORDER BY id DESC LIMIT 1', {'sid': sub_id})
-        if not row and fallback_email:
-            u = find_user(email=fallback_email)
-            if u:
-                row = app_module.db_fetchone('SELECT id,user_id FROM purchases WHERE user_id=:uid ORDER BY id DESC LIMIT 1', {'uid': u['id']})
-        if not row:
-            return False
-        status = str(s.get('status') or '').lower()
-        paid_status = 'paid' if status in ('active', 'trialing', 'past_due') else 'canceled'
-        period_end = s.get('current_period_end')
-        period_text = datetime.fromtimestamp(period_end, timezone.utc).isoformat() if period_end else None
-        app_module.db_execute("""UPDATE purchases SET status=:status,subscription_status=:substatus,
-          current_period_end=:period_end,cancel_at_period_end=:cancel
-          WHERE id=:id""", {
-            'status': paid_status, 'substatus': status, 'period_end': period_text,
-            'cancel': 1 if s.get('cancel_at_period_end') else 0, 'id': row['id']
-        })
         return True
 
     def replace(name, fn):
