@@ -36,11 +36,11 @@ def db_execute(sql, params=None):
 
 def db_fetchone(sql, params=None):
     with engine.connect() as c:
-        row = c.execute(text(sql, params or {}).mappings().first()
+        row = c.execute(text(sql), params or {}).mappings().first()
         return dict(row) if row else None
 
 def db_fetchall(sql, params=None):
-    with engine.connect() as c: return [dict(r) for r in c.execute(text(sql, params or {}).mappings().all())]
+    with engine.connect() as c: return [dict(r) for r in c.execute(text(sql), params or {}).mappings().all()]
 
 def init_db():
     if DB_BACKEND == 'postgresql':
@@ -82,7 +82,7 @@ def save_paid(s):
 @app.get('/')
 def home():
     html=open('index.html',encoding='utf-8').read()
-    html=html.replace('</body>','<script src="/ai.js?v=4"></script><script src="/cvpersist.js?v=5"></script><script src="/profix.js?v=3"></script><script src="/cvimport.js?v=4"></script></body>')
+    html=html.replace('</body>','<script src="/ai.js?v=4"></script><script src="/cvpersist.js?v=4"></script><script src="/profix.js?v=3"></script><script src="/cvimport.js?v=4"></script></body>')
     return Response(html,mimetype='text/html')
 @app.get('/ai.js')
 def ai_js(): return send_from_directory('.','ai.js',mimetype='application/javascript')
@@ -108,16 +108,6 @@ def me():
     u=current_user()
     if not u:return jsonify(logged_in=False)
     active,_,days=trial_info(u); return jsonify(logged_in=True,email=u['email'],trial_active=active,trial_days_left=days,pro=is_pro_user(u))
-
-def has_meaningful_cv_data(d):
-    if not isinstance(d,dict): return False
-    for key in ('name','role','phone','city','linkedin','summary','skills'):
-        if str(d.get(key) or '').strip(): return True
-    if str(d.get('photo') or '').strip(): return True
-    if any(isinstance(e,dict) and any(str(e.get(k) or '').strip() for k in ('position','company','from','to','description')) for e in (d.get('experience') or [])): return True
-    if any(isinstance(e,dict) and any(str(e.get(k) or '').strip() for k in ('title','school','year')) for e in (d.get('education') or [])): return True
-    return False
-
 @app.route('/api/cv',methods=['GET','POST'])
 def cv_data_api():
     u=current_user()
@@ -127,17 +117,7 @@ def cv_data_api():
         if not row:return jsonify(ok=True,data={})
         try:return jsonify(ok=True,data=json.loads(row['data'] or '{}'))
         except Exception:return jsonify(ok=True,data={})
-    incoming=request.get_json(silent=True) or {}
-    if not has_meaningful_cv_data(incoming):
-        row=db_fetchone('SELECT data FROM cv_data WHERE user_id=:uid',{'uid':u['id']})
-        if row:
-            try:
-                existing=json.loads(row['data'] or '{}')
-                if has_meaningful_cv_data(existing):
-                    return jsonify(ok=False,error='EMPTY_CV_REJECTED'),409
-            except Exception: pass
-        return jsonify(ok=True,skipped=True)
-    payload=json.dumps(incoming,ensure_ascii=False)
+    payload=json.dumps(request.get_json(silent=True) or {},ensure_ascii=False)
     if DB_BACKEND=='postgresql':db_execute("INSERT INTO cv_data(user_id,data,updated_at) VALUES(:uid,:data,CURRENT_TIMESTAMP) ON CONFLICT (user_id) DO UPDATE SET data=EXCLUDED.data,updated_at=CURRENT_TIMESTAMP",{'uid':u['id'],'data':payload})
     else:db_execute("INSERT INTO cv_data(user_id,data,updated_at) VALUES(:uid,:data,CURRENT_TIMESTAMP) ON CONFLICT(user_id) DO UPDATE SET data=excluded.data,updated_at=CURRENT_TIMESTAMP",{'uid':u['id'],'data':payload})
     return jsonify(ok=True)
