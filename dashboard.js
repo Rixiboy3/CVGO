@@ -45,15 +45,14 @@
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(check,80));else setTimeout(check,80);
   new MutationObserver(check).observe(document.documentElement,{subtree:true,attributes:true,attributeFilter:['class']});
 
-  // One-time client fallbacks only. No polling and no repeated API requests.
   function loadOnce(id,src){
     if(document.getElementById(id)||document.querySelector('script[data-cvgo-module="'+id+'"]'))return;
     const s=document.createElement('script');s.id=id;s.src=src;s.dataset.cvgoModule=id;s.defer=false;document.head.appendChild(s);
   }
   function ensureModules(){
-    if(window.__cvgoPersistVersion!==5)loadOnce('cvgoPersistV5','/cvpersist.js?v=5');
-    if(!q('#cvgoImport'))loadOnce('cvgoImportV5','/cvimport.js?v=5');
+    loadOnce('cvgoBootV1','/cvboot.js?v=1');
+    loadOnce('cvgoImportV5','/cvimport.js?v=5');
   }
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(ensureModules,120),{once:true});
-  else setTimeout(ensureModules,120);
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(ensureModules,180),{once:true});
+  else setTimeout(ensureModules,180);
 })();
