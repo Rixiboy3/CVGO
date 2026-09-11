@@ -46,10 +46,21 @@
       .cvgoPlans{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin:20px 0}.cvgoPlan{position:relative;border:1px solid #d0d5dd;border-radius:16px;padding:20px;background:#fff;transition:transform .18s ease,box-shadow .18s ease}.cvgoPlan:hover{transform:translateY(-3px);box-shadow:0 12px 30px #10182818}.cvgoPlan.best{border:2px solid #111827;padding:19px}.cvgoPlan .tag{position:absolute;right:12px;top:12px;background:#111827;color:#fff;border-radius:999px;padding:4px 8px;font-size:10px;font-weight:800}.cvgoPlan h3{margin:0 0 7px;font-size:16px}.cvgoPrice{font-size:30px;font-weight:900;margin:8px 0}.cvgoPrice small{font-size:13px;font-weight:500;color:#667085}.cvgoPlan p{font-size:12px;color:#667085;min-height:34px;margin:0 0 12px}.cvgoPlan button{width:100%;border:0;background:#111827;color:#fff;padding:12px;border-radius:9px;font-weight:800;cursor:pointer}.cvgoPlan button.alt{background:#fff;color:#111827;border:1px solid #d0d5dd}.cvgoPlan button:disabled{opacity:.55;cursor:not-allowed}
       .cvgoBenefits{margin:12px 0 18px;padding:0;list-style:none;line-height:1.8;font-size:13px}.cvgoBenefits li:before{content:'✓';font-weight:900;margin-right:8px}.cvgoTrial{background:#ecfdf3;color:#067647;border-radius:11px;padding:11px 13px;font-size:13px;font-weight:700;margin:15px 0}.cvgoLastDay{background:#fff7ed;color:#9a3412;border:1px solid #fed7aa;border-radius:11px;padding:12px 13px;font-size:13px;font-weight:700;margin:15px 0}.cvgoExpired{background:#fef2f2;color:#b42318;border:1px solid #fecaca;border-radius:11px;padding:12px 13px;font-size:13px;font-weight:700;margin:15px 0}.cvgoManage{background:#f8fafc;border:1px solid #eaecf0;border-radius:12px;padding:14px;font-size:13px;color:#475467;margin:16px 0}.cvgoManage strong{color:#101828}.cvgoManage button{margin-top:10px;border:1px solid #d0d5dd;background:#fff;padding:9px 12px;border-radius:8px;font-weight:700;cursor:pointer}.cvgoCancelWarn{color:#b42318;font-size:12px;margin-top:7px}
       .cvgoPriceNote{font-size:11px;color:#667085;text-align:center;margin-top:7px;line-height:1.35}.cvgoTrust{margin:13px 0 2px;text-align:center;font-size:11px;color:#667085;line-height:1.45}.cvgoIntro{margin:16px 0 2px;padding:12px 14px;border-radius:12px;background:#f8fafc;border:1px solid #eaecf0;font-size:12px;color:#475467;line-height:1.55}
+      .cvgoAuthPitch{margin-top:22px;padding:17px;border:1px solid #eaecf0;border-radius:14px;background:#f8fafc;text-align:left}.cvgoAuthPitch h3{margin:0 0 6px;font-size:15px;color:#101828}.cvgoAuthPitch p{margin:0 0 11px;font-size:12px;line-height:1.5;color:#667085}.cvgoAuthPitch ul{margin:0;padding:0;list-style:none;font-size:12px;line-height:1.8;color:#344054}.cvgoAuthPitch li:before{content:'✓';font-weight:900;margin-right:7px}.cvgoAuthPrice{margin-top:12px;font-size:12px;font-weight:800;color:#101828}.cvgoAuthPrice span{font-weight:500;color:#667085}
       #cvgoProClose{width:100%;margin-top:8px;border:1px solid #d0d5dd;background:#fff;padding:11px;border-radius:10px;font-weight:700;cursor:pointer}
       #cvgoProMsg{font-size:13px;color:#b42318;margin-top:9px;min-height:18px}
-      @media(max-width:650px){.cvgoPlans{grid-template-columns:1fr}}
+      @media(max-width:650px){.cvgoPlans{grid-template-columns:1fr}.cvgoAuthPitch{margin-top:18px}}
     `;document.head.appendChild(s);
+  }
+
+  function addAuthPitch(){
+    const auth=document.getElementById('auth');
+    const card=auth?.querySelector('.card');
+    if(!card||document.getElementById('cvgoAuthPitch'))return;
+    const pitch=document.createElement('div');pitch.id='cvgoAuthPitch';pitch.className='cvgoAuthPitch';
+    pitch.innerHTML=`<h3>🚀 Tu CV, mucho más preparado para conseguir entrevistas</h3><p>Empieza gratis y prueba durante 3 días las herramientas que te ayudan a crear, mejorar y preparar tu candidatura.</p><ul><li>Crear CV profesional en minutos</li><li>Optimizarlo para ATS y ofertas reales</li><li>Generar cartas de presentación con IA</li><li>Preparar entrevistas y practicar respuestas</li></ul><div class="cvgoAuthPrice">Después de la prueba: 9,99 €/mes <span>o 59,99 €/año</span></div>`;
+    const sw=card.querySelector('.switch');
+    if(sw)sw.insertAdjacentElement('afterend',pitch);else card.appendChild(pitch);
   }
 
   function planButton(id,plan,label){return `<button id="${id}" data-plan="${plan}">${label}</button>`}
@@ -142,7 +153,11 @@
   }
 
   async function init(){
-    me=await loadMe();addControls();await verifyPaidSession();
+    addStyles();
+    me=await loadMe();
+    if(!me?.logged_in)addAuthPitch();
+    addControls();
+    await verifyPaidSession();
     const oldAnalyze=window.analyze;
     if(typeof oldAnalyze==='function')window.analyze=async function(){if(me&&!me.pro){openPro();return}return oldAnalyze.apply(this,arguments)};
   }
