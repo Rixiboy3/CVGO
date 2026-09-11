@@ -53,13 +53,18 @@
 
   function planButton(id,plan,label){return `<button id="${id}" data-plan="${plan}">${label}</button>`}
 
+  function formatProEnd(){
+    if(!billing?.current_period_end)return '';
+    return new Date(billing.current_period_end).toLocaleDateString('es-ES');
+  }
+
   function openPro(){
     if($('cvgoProModal'))return;
     const trial=!!me?.trial_active;
     const expired=!trial&&!me?.pro;
     const active=!!billing?.active&&!trial;
     const plan=billing?.plan==='annual'?'Anual':'Mensual';
-    const end=billing?.current_period_end?new Date(billing.current_period_end).toLocaleDateString('es-ES'):'';
+    const end=formatProEnd();
     const days=Number(me?.trial_days_left||0);
     const d=document.createElement('div');d.id='cvgoProModal';
     d.innerHTML=`<div class="box">
@@ -69,7 +74,7 @@
       ${trial&&days>1?`<div class="cvgoTrial">🎁 Te quedan ${days} días de prueba gratuita. Aprovecha el acceso completo y prepara tu próximo CV.</div>`:''}
       ${trial&&days===1?`<div class="cvgoLastDay">⚡ Tu prueba termina hoy. Puedes activar PRO al finalizar la prueba para continuar sin interrupciones.</div>`:''}
       ${expired?`<div class="cvgoExpired">🔒 Tu prueba gratuita ha terminado. Activa PRO para recuperar el acceso completo a CVProfit.</div>`:''}
-      ${active?`<div class="cvgoManage"><strong>Plan ${plan}</strong>${end?` · Próxima fecha de renovación: ${end}`:''}<br><span>${billing.cancel_at_period_end?'Tu suscripción está programada para finalizar al terminar el periodo actual.':'Tu suscripción se renovará automáticamente.'}</span>${!billing.cancel_at_period_end?`<br><button id="cvgoCancel">Cancelar renovación</button>`:`<div class="cvgoCancelWarn">La renovación automática está cancelada.</div>`}</div>`:''}
+      ${active?`<div class="cvgoManage"><strong>Plan ${plan}</strong>${end?` · Próxima fecha de renovación: ${end}`:''}<br><span>${billing.cancel_at_period_end?`Tu suscripción está programada para finalizar el ${end||'final del periodo actual'}.`:'Tu suscripción se renovará automáticamente el '+(end||'próximo periodo')+'.'}</span>${!billing.cancel_at_period_end?`<br><button id="cvgoCancel">Cancelar renovación</button>`:`<div class="cvgoCancelWarn">La renovación automática está cancelada.</div>`}</div>`:''}
       ${!active?`<div class="cvgoPlans">
         <div class="cvgoPlan"><h3>Mensual</h3><div class="cvgoPrice">9,99 € <small>/ mes</small></div><p>Flexibilidad total. Cancela cuando quieras.</p>${planButton('cvgoMonthly','monthly',trial?'Disponible al finalizar la prueba':'Continuar con 9,99 €/mes')}</div>
         <div class="cvgoPlan best"><span class="tag">MEJOR PRECIO</span><h3>Anual</h3><div class="cvgoPrice">59,99 € <small>/ año</small></div><p>Solo 5 € al mes. Ahorra 59,89 € frente al mensual.</p>${planButton('cvgoAnnual','annual',trial?'Disponible al finalizar la prueba':'Continuar con 59,99 €/año')}</div>
@@ -123,11 +128,10 @@
         const days=Number(me.trial_days_left||0);
         banner.textContent=days===1?'⚡ Tu prueba termina hoy · Ver CVProfit PRO':`🎁 Tu prueba gratuita está activa · ${days} días restantes`;
       }else if(me.pro){
-        const end=billing?.current_period_end?new Date(billing.current_period_end).toLocaleDateString('es-ES'):'';
-        banner.textContent=billing?.cancel_at_period_end
-          ? `⭐ CVProfit PRO activo · Finaliza el ${end||'final del periodo actual'}`
-          : `⭐ CVProfit PRO activo · Próxima renovación: ${end||'según tu plan'}`;
-      }else banner.textContent='🔒 Tu prueba gratuita ha terminado · Activa PRO para continuar';
+        const end=formatProEnd();
+        banner.textContent=end?`⭐ CVProfit PRO activo · Finaliza el ${end}`:'⭐ CVProfit PRO activo';
+      }
+      else banner.textContent='🔒 Tu prueba gratuita ha terminado · Activa PRO para continuar';
       banner.onclick=openPro;
     }
     if(me.pro){const f=$('cvgoProFloat');if(f)f.remove();}
