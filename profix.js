@@ -9,6 +9,12 @@
     btn.disabled=true;btn.textContent='Preparando pago...';
     try{const r=await fetch('/api/create-checkout-v2',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({plan})});const j=await r.json();if(!r.ok)throw j;if(j.url){location.href=j.url;return}throw {error:'CHECKOUT_ERROR'};}catch(e){msg.textContent=e?.error==='STRIPE_ANNUAL_PRICE_NOT_CONFIGURED'?'El plan anual todavía no está configurado.':'No se ha podido abrir el pago. Inténtalo de nuevo.';btn.disabled=false;btn.textContent=plan==='annual'?'Activar 59,99 €/año':'Activar 9,99 €/mes';}
   }
+  function formatProEnd(me){
+    const raw=me?.billing?.current_period_end;
+    if(!raw)return '';
+    const d=new Date(raw);
+    return Number.isNaN(d.getTime())?'':d.toLocaleDateString('es-ES');
+  }
   function openActivation(me){
     if($('cvprofitManageModal'))return;
     const trial=!!me?.trial_active;const d=document.createElement('div');d.id='cvprofitManageModal';
@@ -17,17 +23,19 @@
     if(trial){$('cvprofitMonthly').disabled=true;$('cvprofitAnnual').disabled=true;}else{$('cvprofitMonthly').onclick=()=>checkout('monthly',$('cvprofitMonthly'),$('cvprofitMsg'));$('cvprofitAnnual').onclick=()=>checkout('annual',$('cvprofitAnnual'),$('cvprofitMsg'));}
   }
   function openManage(me){
-    if($('cvprofitManageModal'))return;const billing=me.billing||{};const plan=billing.plan==='annual'?'Anual':'Mensual';const end=billing.current_period_end?new Date(billing.current_period_end).toLocaleDateString('es-ES'):'';const cancelled=!!billing.cancel_at_period_end;const m=document.createElement('div');m.id='cvprofitManageModal';
-    m.innerHTML=`<div class="box"><h2>⭐ Tu suscripción PRO</h2><div class="info"><strong>Plan ${plan}</strong>${end?`<br>Próxima renovación: ${end}`:''}<br>${cancelled?'La renovación automática está cancelada. Mantendrás PRO hasta el final del periodo actual.':'Tu suscripción se renovará automáticamente.'}</div>${cancelled?'':'<button id="cvprofitCancel">Cancelar renovación</button>'}<button id="cvprofitClose">Cerrar</button><div id="cvprofitMsg" style="margin-top:12px;color:#b42318;font-size:13px"></div></div>`;
+    if($('cvprofitManageModal'))return;const billing=me.billing||{};const plan=billing.plan==='annual'?'Anual':'Mensual';const end=formatProEnd(me);const cancelled=!!billing.cancel_at_period_end;const m=document.createElement('div');m.id='cvprofitManageModal';
+    const periodText=end?(cancelled?`<br><strong>Fecha de caducidad: ${end}</strong>`:`<br><strong>Próxima renovación: ${end}</strong>`):'';
+    m.innerHTML=`<div class="box"><h2>⭐ Tu suscripción PRO</h2><div class="info"><strong>Plan ${plan}</strong>${periodText}<br>${cancelled?'La renovación automática está cancelada. Mantendrás PRO hasta la fecha de caducidad indicada.':'Tu suscripción se renovará automáticamente en la fecha indicada.'}</div>${cancelled?'':'<button id="cvprofitCancel">Cancelar renovación</button>'}<button id="cvprofitClose">Cerrar</button><div id="cvprofitMsg" style="margin-top:12px;color:#b42318;font-size:13px"></div></div>`;
     document.body.appendChild(m);$('cvprofitClose').onclick=()=>m.remove();m.onclick=e=>{if(e.target===m)m.remove()};const c=$('cvprofitCancel');
     if(c)c.onclick=async()=>{if(!confirm('¿Quieres cancelar la renovación automática? Mantendrás PRO hasta el final del periodo ya pagado.'))return;c.disabled=true;c.textContent='Cancelando...';try{const r=await fetch('/api/cancel-subscription',{method:'POST',credentials:'same-origin'});const j=await r.json();if(!r.ok)throw j;m.remove();location.reload();}catch(e){c.disabled=false;c.textContent='Cancelar renovación';$('cvprofitMsg').textContent='No se ha podido cancelar la renovación. Inténtalo de nuevo.'}};
   }
   async function init(){
     try{const r=await fetch('/api/me',{credentials:'same-origin',cache:'no-store'});const me=await r.json();if(!me?.logged_in)return;addStyles();
       const banner=$('trialBanner');
-      if(banner){banner.style.cursor='pointer';banner.title=me.pro?'Gestionar PRO':'Activar PRO';if(me.trial_active){const days=Number(me.trial_days_left||0);banner.textContent=days===1?'⚡ Tu prueba termina hoy · Ver PRO':`🎁 Prueba gratuita activa · ${days} días restantes`;}else if(me.pro){banner.textContent='⭐ CVProfit PRO activo';}else{banner.textContent='🔒 Tu acceso actual ha finalizado · Ya puedes activar PRO';}banner.onclick=()=>{if(me.pro)openManage(me);else openActivation(me);};}
+      if(banner){banner.style.cursor='pointer';banner.title=me.pro?'Gestionar PRO':'Activar PRO';if(me.trial_active){const days=Number(me.trial_days_left||0);banner.textContent=days===1?'⚡ Tu prueba termina hoy · Ver PRO':`🎁 Prueba gratuita activa · ${days} días restantes`;}else if(me.pro){const end=formatProEnd(me);banner.textContent=billingCancelled(me)?`⭐ CVProfit PRO activo · Finaliza el ${end||'final del periodo'}`:end?`⭐ CVProfit PRO activo · Próxima renovación: ${end}`:'⭐ CVProfit PRO activo';}else{banner.textContent='🔒 Tu acceso actual ha finalizado · Ya puedes activar PRO';}banner.onclick=()=>{if(me.pro)openManage(me);else openActivation(me);};}
       if(me.pro){if($('cvprofitActivateBtn'))$('cvprofitActivateBtn').remove();if(!$('cvprofitManageBtn')){const b=document.createElement('button');b.id='cvprofitManageBtn';b.textContent='⚙ Gestionar PRO';b.onclick=()=>openManage(me);document.body.appendChild(b);}}else if(!$('cvprofitActivateBtn')){const b=document.createElement('button');b.id='cvprofitActivateBtn';b.textContent='⭐ Activar PRO';b.onclick=()=>openActivation(me);document.body.appendChild(b);}
     }catch(e){}
   }
+  function billingCancelled(me){return !!me?.billing?.cancel_at_period_end;}
   setTimeout(init,1600);
 })();
