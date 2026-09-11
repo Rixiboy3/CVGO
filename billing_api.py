@@ -159,6 +159,19 @@ def register_billing(app):
         sub_id = s.get('subscription')
         customer_id = s.get('customer')
         plan = metadata.get('plan') or 'monthly'
+        current_period_end = None
+        try:
+            sub_id = s.get('subscription')
+            if sub_id:
+                st = stripe_client()
+                if st:
+                    sub_obj = st.Subscription.retrieve(sub_id)
+                    sub_data = as_dict(sub_obj)
+                    period_end = sub_data.get('current_period_end')
+                    if period_end:
+                        current_period_end = datetime.fromtimestamp(period_end, timezone.utc).isoformat()
+        except Exception:
+            current_period_end = None
         if not sid:
             return False
         existing = app_module.db_fetchone('SELECT id FROM purchases WHERE stripe_session_id=:sid', {'sid': sid})
@@ -166,15 +179,16 @@ def register_billing(app):
             'uid': user['id'], 'sid': sid, 'pi': s.get('payment_intent'),
             'amount': s.get('amount_total'), 'currency': s.get('currency'),
             'status': 'paid', 'subid': sub_id, 'customer': customer_id, 'plan': plan,
+            'period_end': current_period_end,
         }
         if existing:
             app_module.db_execute("""UPDATE purchases SET user_id=:uid,payment_intent=:pi,amount=:amount,currency=:currency,
               status=:status,subscription_id=:subid,stripe_customer_id=:customer,plan=:plan,
-              subscription_status='active' WHERE stripe_session_id=:sid""", params)
+              subscription_status='active',current_period_end=:period_end WHERE stripe_session_id=:sid""", {**params, 'period_end': current_period_end})
         else:
             app_module.db_execute("""INSERT INTO purchases(user_id,stripe_session_id,payment_intent,amount,currency,status,
-              subscription_id,stripe_customer_id,plan,subscription_status,cancel_at_period_end)
-              VALUES(:uid,:sid,:pi,:amount,:currency,:status,:subid,:customer,:plan,'active',0)""", params)
+              subscription_id,stripe_customer_id,plan,subscription_status,cancel_at_period_end,current_period_end)
+              VALUES(:uid,:sid,:pi,:amount,:currency,:status,:subid,:customer,:plan,'active',0,:period_end)""", params)
         return True
 
     def replace(name, fn):
