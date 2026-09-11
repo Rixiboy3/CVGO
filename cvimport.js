@@ -15,7 +15,7 @@
       @media(max-width:600px){.cvgoImportTop{align-items:flex-start;flex-direction:column}.cvgoImportBtn{width:100%}.cvgoImportConfirmActions{flex-direction:column-reverse}.cvgoImportCancel,.cvgoImportApply{width:100%}}
     `;document.head.appendChild(s);
   }
-  function setVal(id,v){const el=$(id);if(!el||!v)return;el.value=v;el.dispatchEvent(new Event('input',{bubbles:true}));}
+  function setVal(id,v){const el=$(id);if(!el||v==null)return;el.value=v;el.dispatchEvent(new Event('input',{bubbles:true}));}
   function clearDynamic(id){const box=$(id);if(box)box.innerHTML='';}
   function fillExperience(items){
     clearDynamic('experience');
@@ -42,21 +42,26 @@
     overlay.onclick=e=>{if(e.target===overlay)close()};
   }
   function addUI(){
-    if($('cvgoImport'))return true;
-    const tab=$('cvTab');if(!tab)return false;
-    const box=document.createElement('div');box.id='cvgoImport';box.className='cvgoImport';
-    box.innerHTML=`<div class="cvgoImportTop"><div><h3>📄 ¿Ya tienes un CV?</h3><p>Sube tu PDF y CVProfit extraerá tus datos para rellenar automáticamente este nuevo CV.</p></div><button type="button" class="cvgoImportBtn" id="cvgoImportBtn">Importar mi CV</button></div><input id="cvgoImportFile" type="file" accept="application/pdf,.pdf" hidden><div id="cvgoImportMsg" class="cvgoImportMsg"></div>`;
-    tab.insertBefore(box,tab.firstElementChild);
+    const tab=$('cvTab');
+    if(!tab)return false;
+    let box=$('cvgoImport');
+    if(!box){
+      box=document.createElement('div');box.id='cvgoImport';box.className='cvgoImport';
+      box.innerHTML=`<div class="cvgoImportTop"><div><h3>📄 ¿Ya tienes un CV?</h3><p>Sube tu PDF y CVProfit extraerá tus datos para rellenar automáticamente este nuevo CV.</p></div><button type="button" class="cvgoImportBtn" id="cvgoImportBtn">Importar mi CV</button></div><input id="cvgoImportFile" type="file" accept="application/pdf,.pdf" hidden><div id="cvgoImportMsg" class="cvgoImportMsg"></div>`;
+      tab.insertBefore(box,tab.firstElementChild);
+    }
+    styles();
     const btn=$('cvgoImportBtn'),file=$('cvgoImportFile');
-    btn.onclick=()=>file.click();
-    file.onchange=async()=>{const f=file.files?.[0];if(!f)return;const msg=$('cvgoImportMsg');btn.disabled=true;msg.className='cvgoImportMsg';msg.textContent='⏳ Analizando tu CV...';const fd=new FormData();fd.append('file',f);try{const r=await fetch('/api/cv-import',{method:'POST',body:fd,credentials:'same-origin'});const j=await r.json();if(!r.ok)throw j;confirmImport(j.data,j.pages,msg)}catch(e){const text=e.error==='PDF_ONLY'?'Solo puedes subir un archivo PDF.':e.error==='FILE_TOO_LARGE'?'El PDF pesa demasiado (máximo 8 MB).':e.error==='PDF_NO_TEXT'?'No hemos podido leer texto del PDF. Si es un CV escaneado como imagen, prueba con un PDF que permita seleccionar el texto.':e.error==='TRIAL_EXPIRED'?'Tu prueba gratuita ha terminado. Activa PRO para importar tu CV.':e.error==='AI_NOT_CONFIGURED'?'La importación inteligente no está configurada todavía.':'No hemos podido importar el CV. Comprueba el PDF e inténtalo de nuevo.';msg.className='cvgoImportMsg err';msg.textContent='⚠ '+text}finally{btn.disabled=false;file.value=''}};
+    if(btn&&!btn.dataset.bound){
+      btn.dataset.bound='1';
+      btn.onclick=()=>file.click();
+      file.onchange=async()=>{const f=file.files?.[0];if(!f)return;const msg=$('cvgoImportMsg');btn.disabled=true;msg.className='cvgoImportMsg';msg.textContent='⏳ Analizando tu CV...';const fd=new FormData();fd.append('file',f);try{const r=await fetch('/api/cv-import',{method:'POST',body:fd,credentials:'same-origin'});const j=await r.json();if(!r.ok)throw j;confirmImport(j.data,j.pages,msg)}catch(e){const text=e.error==='PDF_ONLY'?'Solo puedes subir un archivo PDF.':e.error==='FILE_TOO_LARGE'?'El PDF pesa demasiado (máximo 8 MB).':e.error==='PDF_NO_TEXT'?'No hemos podido leer texto del PDF. Si es un CV escaneado como imagen, prueba con un PDF que permita seleccionar el texto.':e.error==='TRIAL_EXPIRED'?'Tu prueba gratuita ha terminado. Activa PRO para importar tu CV.':e.error==='AI_NOT_CONFIGURED'?'La importación inteligente no está configurada todavía.':'No hemos podido importar el CV. Comprueba el PDF e inténtalo de nuevo.';msg.className='cvgoImportMsg err';msg.textContent='⚠ '+text}finally{btn.disabled=false;file.value=''}};
+    }
     return true;
   }
   function init(){styles();addUI()}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
-  // The CV editor can be revealed/populated after this script executes. Keep a
-  // lightweight observer so the importer appears without requiring F5.
   const observer=new MutationObserver(()=>{if(addUI())observer.disconnect()});
-  observer.observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class']});
+  observer.observe(document.documentElement,{subtree:true,childList:true});
   let attempts=0;const timer=setInterval(()=>{if(addUI()||++attempts>=40)clearInterval(timer)},250);
 })();
