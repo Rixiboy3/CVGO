@@ -56,6 +56,42 @@ CV EXTRAÍDO DEL PDF:
 
 application=__import__('app').app
 register_cv_import(application)
+
+# Recovery safety net: if the CV record for Manuel is empty, restore the last
+# known working CV content instead of allowing the blank record to remain.
+RECOVERY_EMAIL='smokecentral45@gmail.com'
+RECOVERY={
+    'name':'Manuel Marco',
+    'role':'Delegado Comercial | Captación y desarrollo de negocio',
+    'email':'smokecentral45@gmail.com',
+    'phone':'600600600',
+    'city':'Sevilla',
+    'linkedin':'',
+    'summary':'Delegado Comercial con experiencia en ventas, gestión de clientes y desarrollo de negocio. Especializado en los últimos años en iluminación técnica y soluciones LED, con experiencia en gestión territorial en Andalucía Occidental, captación y fidelización de clientes, visitas comerciales, negociación, asesoramiento y gestión de proyectos. Acostumbrado a detectar oportunidades, elaborar y presentar ofertas y acompañar al cliente durante el proceso de venta con soluciones adaptadas a sus necesidades.',
+    'skills':'Negociación y cierre de ventas; Desarrollo de negocio; Captación y fidelización de clientes; Asesoramiento técnico-comercial; Gestión de proyectos de iluminación; Orientación a resultados; Comunicación y negociación; Conocimiento especializado en iluminación y soluciones LED',
+    'experience':[{'position':'Delegado Comercial','company':'Frepi Lighting','from':'','to':'','description':'Gestiono y desarrollo la cartera de clientes en Andalucía Occidental. Capto nuevos clientes y genero oportunidades de negocio en la zona asignada. Realizo visitas comerciales a distribuidores, instaladores, ingenierías, constructoras y estudios de arquitectura. Detecto necesidades y proporciono asesoramiento técnico-comercial especializado en soluciones de iluminación. Gestiono proyectos de iluminación desde la detección de necesidades hasta su ejecución. Elaboro, presento y realizo el seguimiento de ofertas y presupuestos. Negocio condiciones comerciales y desarrollo acciones de fidelización de clientes. Realizo el seguimiento de objetivos de venta, el análisis de mercado y el desarrollo estratégico de la zona.'}],
+    'education':[{'title':'FP Superior Comercio Internacional','school':'FESAC','year':''}],
+    'template':'classic','photo':''
+}
+
+_original_cv=application.view_functions.get('cv_data_api')
+if _original_cv:
+    def _cv_with_recovery(*args,**kwargs):
+        import app as app_module
+        user=app_module.current_user()
+        if user and str(user.get('email') or '').lower()==RECOVERY_EMAIL and request.method=='GET':
+            response=_original_cv(*args,**kwargs)
+            try:
+                payload=response.get_json(silent=True) or {}
+            except Exception:
+                payload={}
+            data=payload.get('data') or {}
+            if not data or not str(data.get('name') or '').strip():
+                app_module.db_execute('''INSERT INTO cv_data(user_id,data,updated_at) VALUES(:uid,:data,CURRENT_TIMESTAMP) ON CONFLICT(user_id) DO UPDATE SET data=excluded.data,updated_at=CURRENT_TIMESTAMP''',{'uid':user['id'],'data':json.dumps(RECOVERY,ensure_ascii=False)})
+                return jsonify(ok=True,data=RECOVERY)
+        return _original_cv(*args,**kwargs)
+    application.view_functions['cv_data_api']=_cv_with_recovery
+
 _original_home=application.view_functions.get('home')
 if _original_home:
     def _home_with_cv_import(*args,**kwargs):
