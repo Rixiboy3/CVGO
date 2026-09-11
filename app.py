@@ -82,12 +82,17 @@ def save_paid(s):
 @app.get('/')
 def home():
     html=open('index.html',encoding='utf-8').read()
-    html=html.replace('</body>','<script src="/ai.js?v=4"></script><script src="/cvpersist.js?v=4"></script><script src="/profix.js?v=3"></script><script src="/cvimport.js?v=4"></script></body>')
+    injection='<link rel="stylesheet" href="/dashboard.css?v=3"><script src="/dashboard.js?v=7"></script><script src="/ai.js?v=4"></script><script src="/cvpersist.js?v=4"></script><script src="/profix.js?v=3"></script><script src="/cvimport.js?v=4"></script>'
+    html=html.replace('</head>',injection+'</head>')
     return Response(html,mimetype='text/html')
 @app.get('/ai.js')
 def ai_js(): return send_from_directory('.','ai.js',mimetype='application/javascript')
 @app.get('/cvpersist.js')
 def cvpersist_js(): return send_from_directory('.','cvpersist.js',mimetype='application/javascript')
+@app.get('/dashboard.js')
+def dashboard_js(): return send_from_directory('.','dashboard.js',mimetype='application/javascript')
+@app.get('/dashboard.css')
+def dashboard_css(): return send_from_directory('.','dashboard.css',mimetype='text/css')
 
 @app.post('/api/register')
 def register():
