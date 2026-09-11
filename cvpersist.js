@@ -52,7 +52,8 @@
   window.addEventListener('beforeunload',()=>{try{navigator.sendBeacon('/api/cv',new Blob([JSON.stringify(read())],{type:'application/json'}))}catch(e){}});
   window.cvgoServerSave=save;
   const original=window.loadUser;
-  if(typeof original==='function')window.loadUser=async function(){const result=await original.apply(this,arguments);addControls();await load();return result};
+  if(typeof original==='function')window.loadUser=async function(){const result=await original.apply(this,arguments);const m=await fetch('/api/me',{credentials:'same-origin'}).then(x=>x.json()).catch(()=>({}));if(m.logged_in){try{sessionStorage.setItem('cvgo_user_email',m.email||'')}catch(e){}addControls();await load()}else{const b=$('cvgoLogoutBtn');if(b)b.remove()}return result};
+  setTimeout(()=>{fetch('/api/me',{credentials:'same-origin'}).then(x=>x.json()).then(async u=>{if(u.logged_in){try{sessionStorage.setItem('cvgo_user_email',u.email||'')}catch(e){}addControls();await load()}else{const b=$('cvgoLogoutBtn');if(b)b.remove();addControls()}}).catch(()=>{const b=$('cvgoLogoutBtn');if(b)b.remove()})},600);
 
   function escATS(s){return String(s||'').replace(/[&<>\"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;',"'":'&#039;'}[m]))}
   function atsProfile(){
