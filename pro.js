@@ -47,10 +47,23 @@
       .cvgoBenefits{margin:12px 0 18px;padding:0;list-style:none;line-height:1.8;font-size:13px}.cvgoBenefits li:before{content:'✓';font-weight:900;margin-right:8px}.cvgoTrial{background:#ecfdf3;color:#067647;border-radius:11px;padding:11px 13px;font-size:13px;font-weight:700;margin:15px 0}.cvgoLastDay{background:#fff7ed;color:#9a3412;border:1px solid #fed7aa;border-radius:11px;padding:12px 13px;font-size:13px;font-weight:700;margin:15px 0}.cvgoExpired{background:#fef2f2;color:#b42318;border:1px solid #fecaca;border-radius:11px;padding:12px 13px;font-size:13px;font-weight:700;margin:15px 0}.cvgoManage{background:#f8fafc;border:1px solid #eaecf0;border-radius:12px;padding:14px;font-size:13px;color:#475467;margin:16px 0}.cvgoManage strong{color:#101828}.cvgoManage button{margin-top:10px;border:1px solid #d0d5dd;background:#fff;padding:9px 12px;border-radius:8px;font-weight:700;cursor:pointer}.cvgoCancelWarn{color:#b42318;font-size:12px;margin-top:7px}
       .cvgoPriceNote{font-size:11px;color:#667085;text-align:center;margin-top:7px;line-height:1.35}.cvgoTrust{margin:13px 0 2px;text-align:center;font-size:11px;color:#667085;line-height:1.45}.cvgoIntro{margin:16px 0 2px;padding:12px 14px;border-radius:12px;background:#f8fafc;border:1px solid #eaecf0;font-size:12px;color:#475467;line-height:1.55}
       .cvgoAuthPitch{margin-top:22px;padding:17px;border:1px solid #eaecf0;border-radius:14px;background:#f8fafc;text-align:left}.cvgoAuthPitch h3{margin:0 0 6px;font-size:15px;color:#101828}.cvgoAuthPitch p{margin:0 0 11px;font-size:12px;line-height:1.5;color:#667085}.cvgoAuthPitch ul{margin:0;padding:0;list-style:none;font-size:12px;line-height:1.8;color:#344054}.cvgoAuthPitch li:before{content:'✓';font-weight:900;margin-right:7px}.cvgoAuthPrice{margin-top:12px;font-size:12px;font-weight:800;color:#101828}.cvgoAuthPrice span{font-weight:500;color:#667085}
-      #cvgoProClose{width:100%;margin-top:8px;border:1px solid #d0d5dd;background:#fff;padding:11px;border-radius:10px;font-weight:700;cursor:pointer}
-      #cvgoProMsg{font-size:13px;color:#b42318;margin-top:9px;min-height:18px}
-      @media(max-width:650px){.cvgoPlans{grid-template-columns:1fr}.cvgoAuthPitch{margin-top:18px}}
+      .cvgoLanding{max-width:1080px;margin:34px auto 24px;padding:0 24px}.cvgoHero{display:grid;grid-template-columns:1.25fr .75fr;gap:28px;align-items:center;background:linear-gradient(135deg,#111827 0%,#1f2937 100%);color:#fff;border-radius:24px;padding:46px 44px;box-shadow:0 18px 50px #10182822}.cvgoHeroKicker{display:inline-block;padding:6px 10px;border-radius:999px;background:#ffffff18;border:1px solid #ffffff25;font-size:11px;font-weight:800;letter-spacing:.4px}.cvgoHero h1{margin:14px 0 12px;font-size:42px;line-height:1.05;letter-spacing:-1.2px}.cvgoHeroLead{margin:0;color:#d1d5db;font-size:16px;line-height:1.6;max-width:620px}.cvgoHeroCta{margin-top:22px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}.cvgoHeroCta button{border:0;border-radius:10px;padding:13px 18px;font-weight:900;cursor:pointer}.cvgoHeroCta .primaryCta{background:#fff;color:#111827}.cvgoHeroCta .secondaryCta{background:#ffffff12;color:#fff;border:1px solid #ffffff30}.cvgoHeroTrust{margin-top:12px;font-size:11px;color:#cbd5e1}.cvgoHeroCard{background:#fff;color:#111827;border-radius:18px;padding:22px;box-shadow:0 15px 40px #0003}.cvgoHeroCard .priceLabel{font-size:11px;color:#667085;font-weight:800}.cvgoHeroCard .price{font-size:34px;font-weight:900;margin:5px 0}.cvgoHeroCard .price small{font-size:13px;font-weight:500;color:#667085}.cvgoHeroCard .annual{margin-top:8px;padding:10px;border-radius:10px;background:#f2f4f7;font-size:12px;line-height:1.45}.cvgoHeroCard ul{margin:15px 0 0;padding:0;list-style:none;font-size:12px;line-height:1.9}.cvgoHeroCard li:before{content:'✓';font-weight:900;margin-right:7px}.cvgoLandingFeatures{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px}.cvgoFeature{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:16px}.cvgoFeature b{display:block;font-size:13px;margin-bottom:5px}.cvgoFeature span{font-size:11px;color:#667085;line-height:1.5}.cvgoLandingTitle{text-align:center;margin:28px 0 10px;font-size:22px}.cvgoLandingSub{text-align:center;margin:0 0 16px;color:#667085;font-size:13px}.cvgoLanding.hide{display:none}
+      @media(max-width:800px){.cvgoHero{grid-template-columns:1fr;padding:32px 25px}.cvgoHero h1{font-size:34px}.cvgoLandingFeatures{grid-template-columns:1fr}.cvgoHeroCard{max-width:460px}.cvgoLanding{padding:0 16px;margin-top:20px}}
+      @media(max-width:650px){.cvgoPlans{grid-template-columns:1fr}.cvgoAuthPitch{margin-top:18px}.cvgoHeroCta button{width:100%}}
     `;document.head.appendChild(s);
+  }
+
+  function addLanding(){
+    if(me?.logged_in||document.getElementById('cvgoLanding'))return;
+    const auth=document.getElementById('auth');if(!auth)return;
+    const landing=document.createElement('section');landing.id='cvgoLanding';landing.className='cvgoLanding';
+    landing.innerHTML=`<div class="cvgoHero">
+      <div><span class="cvgoHeroKicker">CVPROFIT · TU PRÓXIMA ENTREVISTA EMPIEZA AQUÍ</span><h1>Crea un CV profesional que te ayude a conseguir entrevistas.</h1><p class="cvgoHeroLead">Diseña tu CV, adáptalo a cada oferta y prepárate para la entrevista con herramientas inteligentes en un solo lugar.</p><div class="cvgoHeroCta"><button class="primaryCta" id="cvgoHeroStart">🎁 Empezar gratis 3 días</button><button class="secondaryCta" id="cvgoHeroSee">Ver cómo funciona ↓</button></div><div class="cvgoHeroTrust">✓ 3 días de acceso completo · ✓ Sin cobro durante la prueba · ✓ Cancela cuando quieras</div></div>
+      <div class="cvgoHeroCard"><div class="priceLabel">DESPUÉS DE LA PRUEBA</div><div class="price">9,99 € <small>/ mes</small></div><div class="annual"><strong>⭐ Mejor precio: 59,99 €/año</strong><br>Equivale a solo 5 €/mes.</div><ul><li>CV profesionales ilimitados</li><li>Optimización ATS con IA</li><li>Cartas de presentación</li><li>Preparación de entrevistas</li></ul></div>
+    </div><div class="cvgoLandingFeatures"><div class="cvgoFeature"><b>🎯 Adaptado a cada oferta</b><span>Analiza los requisitos y descubre qué encaja y qué falta en tu CV.</span></div><div class="cvgoFeature"><b>🤖 IA para mejorar tu candidatura</b><span>Optimiza perfil, experiencia y palabras clave sin inventar información.</span></div><div class="cvgoFeature"><b>🎤 Llega preparado a la entrevista</b><span>Practica preguntas y respuestas enfocadas al puesto que buscas.</span></div></div>`;
+    auth.parentNode.insertBefore(landing,auth);
+    $('cvgoHeroStart').onclick=()=>{auth.scrollIntoView({behavior:'smooth',block:'center'});setTimeout(()=>$('authEmail')?.focus(),450)};
+    $('cvgoHeroSee').onclick=()=>document.querySelector('.cvgoLandingFeatures')?.scrollIntoView({behavior:'smooth',block:'center'});
   }
 
   function addAuthPitch(){
@@ -79,83 +92,26 @@
     const end=formatProEnd();
     const days=Number(me?.trial_days_left||0);
     const d=document.createElement('div');d.id='cvgoProModal';
-    d.innerHTML=`<div class="box">
-      <div style="font-size:12px;color:#667085;font-weight:800">CVProfit</div>
-      <h2>${trial?'🎁 Tu prueba gratuita está activa':active?'⭐ Tu suscripción PRO':'🚀 Pasa a CVProfit PRO'}</h2>
-      <div class="cvgoSub">${trial?'Tienes acceso completo a CVProfit durante tu periodo gratuito. No se realizará ningún cobro durante la prueba.':active?'Tienes acceso completo a todas las funciones PRO.':'Todo lo que necesitas para crear un CV mejor, adaptarlo a cada oferta y preparar tus entrevistas.'}</div>
-      ${trial&&days>1?`<div class="cvgoTrial">🎁 Te quedan ${days} días de prueba gratuita. Aprovecha el acceso completo y prepara tu próximo CV.</div>`:''}
-      ${trial&&days===1?`<div class="cvgoLastDay">⚡ Tu prueba termina hoy. Puedes activar PRO al finalizar la prueba para continuar sin interrupciones.</div>`:''}
-      ${expired?`<div class="cvgoExpired">🔒 Tu prueba gratuita ha terminado. Activa PRO para recuperar el acceso completo a CVProfit.</div>`:''}
-      ${!active&&!trial?`<div class="cvgoIntro"><strong>Elige cómo quieres continuar</strong><br>Mensual si prefieres flexibilidad o anual si quieres pagar menos por mes y olvidarte de renovaciones durante un año.</div>`:''}
-      ${active?`<div class="cvgoManage"><strong>Plan ${plan}</strong>${end?` · Próxima fecha de renovación: ${end}`:''}<br><span>${billing.cancel_at_period_end?`Tu suscripción está programada para finalizar el ${end||'final del periodo actual'}.`:'Tu suscripción se renovará automáticamente el '+(end||'próximo periodo')+'.'}</span>${!billing.cancel_at_period_end?`<br><button id="cvgoCancel">Cancelar renovación</button>`:`<div class="cvgoCancelWarn">La renovación automática está cancelada.</div>`}</div>`:''}
-      ${!active?`<div class="cvgoPlans">
-        <div class="cvgoPlan"><h3>Mensual</h3><div class="cvgoPrice">9,99 € <small>/ mes</small></div><p>Flexibilidad total. Cancela cuando quieras.</p>${planButton('cvgoMonthly','monthly',trial?'Disponible al finalizar la prueba':'Continuar con 9,99 €/mes')}</div>
-        <div class="cvgoPlan best"><span class="tag">MEJOR PRECIO</span><h3>Anual</h3><div class="cvgoPrice">59,99 € <small>/ año</small></div><p>Solo <strong>5 € al mes</strong>. Paga una vez y disfruta de PRO durante 12 meses.</p>${planButton('cvgoAnnual','annual',trial?'Disponible al finalizar la prueba':'Continuar con 59,99 €/año')}<div class="cvgoPriceNote">Renovación automática anual. Puedes cancelarla antes de la siguiente renovación.</div></div>
-      </div>`:''}
-      <ul class="cvgoBenefits"><li>CV ilimitados</li><li>Adaptación a ofertas con IA</li><li>Optimización ATS</li><li>Cartas de presentación</li><li>Simulador de entrevistas IA</li><li>Respuestas por voz y evaluación personalizada</li></ul>
-      <div class="cvgoTrust">🔒 Pago seguro mediante Stripe · Puedes cancelar la renovación automática cuando quieras.</div>
-      <div id="cvgoProMsg"></div><button id="cvgoProClose">Cerrar</button>
-    </div>`;
-    document.body.appendChild(d);
-    $('cvgoProClose').onclick=()=>d.remove();
-    d.onclick=e=>{if(e.target===d)d.remove()};
-
-    ['cvgoMonthly','cvgoAnnual'].forEach(id=>{
-      const b=$(id);if(!b)return;
-      if(trial)b.disabled=true;
-      b.onclick=async()=>{
-        const chosen=b.dataset.plan,msg=$('cvgoProMsg');b.disabled=true;b.textContent='⏳ Preparando pago...';msg.textContent='';
-        try{
-          const r=await fetch('/api/create-checkout-v2',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({plan:chosen})});
-          const j=await r.json();if(!r.ok)throw j;if(j.url){location.href=j.url;return}throw {error:'CHECKOUT_ERROR'}
-        }catch(e){
-          msg.textContent=e?.error==='STRIPE_ANNUAL_PRICE_NOT_CONFIGURED'?'El plan anual todavía no está configurado.':e?.error==='STRIPE_NOT_CONFIGURED'?'El pago todavía no está configurado.':'No se ha podido abrir el pago. Inténtalo de nuevo.';
-          b.disabled=false;b.textContent=chosen==='annual'?'Continuar con 59,99 €/año':'Continuar con 9,99 €/mes';
-        }
-      };
-    });
-
-    const cancel=$('cvgoCancel');
-    if(cancel)cancel.onclick=async()=>{
-      if(!confirm('¿Quieres cancelar la renovación automática? Mantendrás PRO hasta el final del periodo ya pagado.'))return;
-      cancel.disabled=true;cancel.textContent='Cancelando...';
-      try{
-        const r=await fetch('/api/cancel-subscription',{method:'POST',credentials:'same-origin'});const j=await r.json();if(!r.ok)throw j;
-        d.remove();await loadMe();addControls();
-      }catch(e){
-        $('cvgoProMsg').textContent='No se ha podido cancelar la renovación. Inténtalo de nuevo.';cancel.disabled=false;cancel.textContent='Cancelar renovación';
-      }
-    };
+    d.innerHTML=`<div class="box"><div style="font-size:12px;color:#667085;font-weight:800">CVProfit</div><h2>${trial?'🎁 Tu prueba gratuita está activa':active?'⭐ Tu suscripción PRO':'🚀 Pasa a CVProfit PRO'}</h2><div class="cvgoSub">${trial?'Tienes acceso completo a CVProfit durante tu periodo gratuito. No se realizará ningún cobro durante la prueba.':active?'Tienes acceso completo a todas las funciones PRO.':'Todo lo que necesitas para crear un CV mejor, adaptarlo a cada oferta y preparar tus entrevistas.'}</div>${trial&&days>1?`<div class="cvgoTrial">🎁 Te quedan ${days} días de prueba gratuita. Aprovecha el acceso completo y prepara tu próximo CV.</div>`:''}${trial&&days===1?`<div class="cvgoLastDay">⚡ Tu prueba termina hoy. Puedes activar PRO al finalizar la prueba para continuar sin interrupciones.</div>`:''}${expired?`<div class="cvgoExpired">🔒 Tu prueba gratuita ha terminado. Activa PRO para recuperar el acceso completo a CVProfit.</div>`:''}${!active&&!trial?`<div class="cvgoIntro"><strong>Elige cómo quieres continuar</strong><br>Mensual si prefieres flexibilidad o anual si quieres pagar menos por mes y olvidarte de renovaciones durante un año.</div>`:''}${active?`<div class="cvgoManage"><strong>Plan ${plan}</strong>${end?` · Próxima fecha de renovación: ${end}`:''}<br><span>${billing.cancel_at_period_end?`Tu suscripción está programada para finalizar el ${end||'final del periodo actual'}.`:'Tu suscripción se renovará automáticamente el '+(end||'próximo periodo')+'.'}</span>${!billing.cancel_at_period_end?`<br><button id="cvgoCancel">Cancelar renovación</button>`:`<div class="cvgoCancelWarn">La renovación automática está cancelada.</div>`}</div>`:''}${!active?`<div class="cvgoPlans"><div class="cvgoPlan"><h3>Mensual</h3><div class="cvgoPrice">9,99 € <small>/ mes</small></div><p>Flexibilidad total. Cancela cuando quieras.</p>${planButton('cvgoMonthly','monthly',trial?'Disponible al finalizar la prueba':'Continuar con 9,99 €/mes')}</div><div class="cvgoPlan best"><span class="tag">MEJOR PRECIO</span><h3>Anual</h3><div class="cvgoPrice">59,99 € <small>/ año</small></div><p>Solo <strong>5 € al mes</strong>. Paga una vez y disfruta de PRO durante 12 meses.</p>${planButton('cvgoAnnual','annual',trial?'Disponible al finalizar la prueba':'Continuar con 59,99 €/año')}<div class="cvgoPriceNote">Renovación automática anual. Puedes cancelarla antes de la siguiente renovación.</div></div></div>`:''}<ul class="cvgoBenefits"><li>CV ilimitados</li><li>Adaptación a ofertas con IA</li><li>Optimización ATS</li><li>Cartas de presentación</li><li>Simulador de entrevistas IA</li><li>Respuestas por voz y evaluación personalizada</li></ul><div class="cvgoTrust">🔒 Pago seguro mediante Stripe · Puedes cancelar la renovación automática cuando quieras.</div><div id="cvgoProMsg"></div><button id="cvgoProClose">Cerrar</button></div>`;
+    document.body.appendChild(d);$('cvgoProClose').onclick=()=>d.remove();d.onclick=e=>{if(e.target===d)d.remove()};
+    ['cvgoMonthly','cvgoAnnual'].forEach(id=>{const b=$(id);if(!b)return;if(trial)b.disabled=true;b.onclick=async()=>{const chosen=b.dataset.plan,msg=$('cvgoProMsg');b.disabled=true;b.textContent='⏳ Preparando pago...';msg.textContent='';try{const r=await fetch('/api/create-checkout-v2',{method:'POST',headers:{'Content-Type':'application/json'},credentials:'same-origin',body:JSON.stringify({plan:chosen})});const j=await r.json();if(!r.ok)throw j;if(j.url){location.href=j.url;return}throw {error:'CHECKOUT_ERROR'}}catch(e){msg.textContent=e?.error==='STRIPE_ANNUAL_PRICE_NOT_CONFIGURED'?'El plan anual todavía no está configurado.':e?.error==='STRIPE_NOT_CONFIGURED'?'El pago todavía no está configurado.':'No se ha podido abrir el pago. Inténtalo de nuevo.';b.disabled=false;b.textContent=chosen==='annual'?'Continuar con 59,99 €/año':'Continuar con 9,99 €/mes'}}});
+    const cancel=$('cvgoCancel');if(cancel)cancel.onclick=async()=>{if(!confirm('¿Quieres cancelar la renovación automática? Mantendrás PRO hasta el final del periodo ya pagado.'))return;cancel.disabled=true;cancel.textContent='Cancelando...';try{const r=await fetch('/api/cancel-subscription',{method:'POST',credentials:'same-origin'});const j=await r.json();if(!r.ok)throw j;d.remove();await loadMe();addControls()}catch(e){$('cvgoProMsg').textContent='No se ha podido cancelar la renovación. Inténtalo de nuevo.';cancel.disabled=false;cancel.textContent='Cancelar renovación'}};
   }
 
   function addControls(){
     if(!me?.logged_in)return;
     addStyles();
     const header=document.querySelector('header');
-    if(header&&!$('cvgoProBtn')){const b=document.createElement('button');b.id='cvgoProBtn';b.textContent=me.trial_active?'🎁 Prueba activa':me.pro?'⭐ PRO activo':'⭐ Activar PRO';b.onclick=openPro;header.appendChild(b)}
-    else if($('cvgoProBtn')){$('cvgoProBtn').textContent=me.trial_active?'🎁 Prueba activa':me.pro?'⭐ PRO activo':'⭐ Activar PRO'}
+    if(header&&!$('cvgoProBtn')){const b=document.createElement('button');b.id='cvgoProBtn';b.textContent=me.trial_active?'🎁 Prueba activa':me.pro?'⭐ PRO activo':'⭐ Activar PRO';b.onclick=openPro;header.appendChild(b)}else if($('cvgoProBtn')){$('cvgoProBtn').textContent=me.trial_active?'🎁 Prueba activa':me.pro?'⭐ PRO activo':'⭐ Activar PRO'}
     const banner=$('trialBanner');
-    if(banner){
-      banner.style.cursor='pointer';
-      banner.title='Ver planes CVProfit';
-      if(me.trial_active){
-        const days=Number(me.trial_days_left||0);
-        banner.textContent=days===1?'⚡ Tu prueba termina hoy · Ver CVProfit PRO':`🎁 Tu prueba gratuita está activa · ${days} días restantes`;
-      }else if(me.pro){
-        const end=formatProEnd();
-        banner.textContent=end?`⭐ CVProfit PRO activo · Finaliza el ${end}`:'⭐ CVProfit PRO activo';
-      }
-      else banner.textContent='🔒 Tu prueba gratuita ha terminado · Activa PRO para continuar';
-      banner.onclick=openPro;
-    }
-    if(me.pro){const f=$('cvgoProFloat');if(f)f.remove();}
-    else if(!$('cvgoProFloat')){const b=document.createElement('button');b.id='cvgoProFloat';b.textContent=me.trial_active?'⭐ Ver PRO':'⭐ Activar PRO';b.onclick=openPro;document.body.appendChild(b)}
+    if(banner){banner.style.cursor='pointer';banner.title='Ver planes CVProfit';if(me.trial_active){const days=Number(me.trial_days_left||0);banner.textContent=days===1?'⚡ Tu prueba termina hoy · Ver CVProfit PRO':`🎁 Tu prueba gratuita está activa · ${days} días restantes`}else if(me.pro){const end=formatProEnd();banner.textContent=end?`⭐ CVProfit PRO activo · Finaliza el ${end}`:'⭐ CVProfit PRO activo'}else banner.textContent='🔒 Tu prueba gratuita ha terminado · Activa PRO para continuar';banner.onclick=openPro}
+    if(me.pro){const f=$('cvgoProFloat');if(f)f.remove()}else if(!$('cvgoProFloat')){const b=document.createElement('button');b.id='cvgoProFloat';b.textContent=me.trial_active?'⭐ Ver PRO':'⭐ Activar PRO';b.onclick=openPro;document.body.appendChild(b)}
   }
 
   async function init(){
     addStyles();
     me=await loadMe();
-    if(!me?.logged_in)addAuthPitch();
+    if(!me?.logged_in){addLanding();addAuthPitch()}
     addControls();
     await verifyPaidSession();
     const oldAnalyze=window.analyze;
