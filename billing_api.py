@@ -86,16 +86,51 @@ def register_billing(app):
 
         Webhooks are the normal source of truth, but this fallback makes the UI
         correct even when a webhook is delayed, missed, or being retried.
+        Older purchases are also repaired when only the Stripe customer or
+        checkout session identifier was stored.
         """
-        if not row or not row.get('subscription_id'):
+        if not row:
             return row
         st = stripe_client()
         if not st:
             return row
         try:
-            sub = st.Subscription.retrieve(row['subscription_id'])
+            sub = None
+            if row.get('subscription_id'):
+                sub = st.Subscription.retrieve(row['subscription_id'])
+            elif row.get('stripe_customer_id'):
+                subs = st.Subscription.list(customer=row['stripe_customer_id'], status='all', limit=10)
+                candidates = [as_dict(x) for x in getattr(subs, 'data', [])]
+                candidates = [x for x in candidates if str(x.get('status') or '').lower() in ('active', 'trialing', 'past_due')]
+                if candidates:
+                    candidates.sort(key=lambda x: x.get('current_period_end') or 0, reverse=True)
+                    sub = candidates[0]
+            elif row.get('stripe_session_id'):
+                session = st.checkout.Session.retrieve(row['stripe_session_id'])
+                session_data = as_dict(session)
+                sid = session_data.get('subscription')
+                if sid:
+                    sub = st.Subscription.retrieve(sid)
+            if not sub:
+                return row
+
             s = as_dict(sub)
-            update_subscription(s)
+            period_end = s.get('current_period_end')
+            period_text = datetime.fromtimestamp(period_end, timezone.utc).isoformat() if period_end else None
+            status = str(s.get('status') or '').lower()
+            paid_status = 'paid' if status in ('active', 'trialing', 'past_due') else 'canceled'
+            app_module.db_execute("""UPDATE purchases SET status=:status,subscription_id=:sid,
+              stripe_customer_id=:customer,subscription_status=:substatus,
+              current_period_end=:period_end,cancel_at_period_end=:cancel
+              WHERE id=:id""", {
+                'status': paid_status,
+                'sid': s.get('id'),
+                'customer': s.get('customer') or row.get('stripe_customer_id'),
+                'substatus': status,
+                'period_end': period_text,
+                'cancel': 1 if s.get('cancel_at_period_end') else 0,
+                'id': row['id']
+            })
             refreshed = app_module.db_fetchone('SELECT * FROM purchases WHERE id=:id', {'id': row['id']})
             return refreshed or row
         except Exception:
