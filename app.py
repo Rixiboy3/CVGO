@@ -36,11 +36,11 @@ def db_execute(sql, params=None):
 
 def db_fetchone(sql, params=None):
     with engine.connect() as c:
-        row = c.execute(text(sql, params or {}).mappings().first()
+        row = c.execute(text(sql), params or {}).mappings().first()
         return dict(row) if row else None
 
 def db_fetchall(sql, params=None):
-    with engine.connect() as c: return [dict(r) for r in c.execute(text(sql, params or {}).mappings().all())]
+    with engine.connect() as c: return [dict(r) for r in c.execute(text(sql), params or {}).mappings().all()]
 
 def init_db():
     if DB_BACKEND == 'postgresql':
