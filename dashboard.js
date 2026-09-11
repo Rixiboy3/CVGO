@@ -44,4 +44,36 @@
   function check(){if(q('#main')&&!q('#main').classList.contains('hidden'))build()}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(check,80));else setTimeout(check,80);
   new MutationObserver(check).observe(document.documentElement,{subtree:true,attributes:true,attributeFilter:['class']});
+
+  // CVProfit startup stabilizer: the app has several independently loaded modules.
+  // On a cold login/navigation one module can finish after the others. Retry only
+  // when a concrete public capability is missing; never blindly duplicate scripts.
+  const scriptMap={
+    persist:{src:'/cvpersist.js?v=4',test:()=>typeof window.cvgoServerSave==='function'},
+    ai:{src:'/ai.js?v=4',test:()=>typeof window.generateAICV==='function'},
+    interview:{src:'/interview.js?v=4',test:()=>document.querySelector('#interviewTab')||document.querySelector('#interview')},
+    pro:{src:'/pro.js?v=7',test:()=>document.querySelector('#cvgoProBtn')||document.querySelector('#cvgoProFloat')||document.querySelector('.cvgoLanding')||document.querySelector('#cvgoProModal')},
+    import:{src:'/cvimport.js?v=2',test:()=>document.querySelector('#cvgoImportCard')||document.querySelector('#cvgoImportBtn')}
+  };
+  const loaded={};
+  function retryModule(name){
+    const item=scriptMap[name];if(!item||loaded[name]||item.test())return;
+    loaded[name]=true;
+    const s=document.createElement('script');s.src=item.src;s.defer=false;s.dataset.cvgoRetry=name;
+    s.onload=()=>{if(name==='pro'&&typeof window.scrollTo==='function')setTimeout(()=>window.scrollTo({top:window.scrollY}),0)};
+    s.onerror=()=>{loaded[name]=false};
+    document.head.appendChild(s);
+  }
+  async function stabilize(){
+    try{
+      const r=await fetch('/api/me',{credentials:'same-origin',cache:'no-store'});const u=await r.json();
+      if(!u?.logged_in)return;
+      // Give the normal scripts a moment first, then repair only missing modules.
+      setTimeout(()=>{retryModule('persist');retryModule('ai');retryModule('interview');retryModule('pro');retryModule('import')},250);
+      setTimeout(()=>{retryModule('persist');retryModule('ai');retryModule('interview');retryModule('pro');retryModule('import')},1200);
+      setTimeout(()=>{retryModule('persist');retryModule('ai');retryModule('interview');retryModule('pro');retryModule('import')},2500);
+    }catch(e){}
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',stabilize,{once:true});else stabilize();
+  window.addEventListener('pageshow',()=>setTimeout(stabilize,150));
 })();
