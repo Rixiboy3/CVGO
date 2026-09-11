@@ -45,18 +45,15 @@
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(check,80));else setTimeout(check,80);
   new MutationObserver(check).observe(document.documentElement,{subtree:true,attributes:true,attributeFilter:['class']});
 
-  // Keep a single lightweight fallback for the CV importer. Do not poll the
-  // server repeatedly: the home page already loads the module directly.
-  function ensureImporter(){
-    if(q('#cvgoImport'))return true;
-    if(document.querySelector('script[data-cvgo-import]'))return false;
-    const s=document.createElement('script');
-    s.src='/cvimport.js?v=5';
-    s.defer=false;
-    s.dataset.cvgoImport='1';
-    document.head.appendChild(s);
-    return false;
+  // One-time client fallbacks only. No polling and no repeated API requests.
+  function loadOnce(id,src){
+    if(document.getElementById(id)||document.querySelector('script[data-cvgo-module="'+id+'"]'))return;
+    const s=document.createElement('script');s.id=id;s.src=src;s.dataset.cvgoModule=id;s.defer=false;document.head.appendChild(s);
   }
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{setTimeout(ensureImporter,150);setTimeout(ensureImporter,900)},{once:true});
-  else {setTimeout(ensureImporter,150);setTimeout(ensureImporter,900)}
+  function ensureModules(){
+    if(window.__cvgoPersistVersion!==5)loadOnce('cvgoPersistV5','/cvpersist.js?v=5');
+    if(!q('#cvgoImport'))loadOnce('cvgoImportV5','/cvimport.js?v=5');
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(ensureModules,120),{once:true});
+  else setTimeout(ensureModules,120);
 })();
