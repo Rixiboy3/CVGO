@@ -31,6 +31,7 @@
   }
   function run(){
     document.title=document.title.replace(/CVGO/g,BRAND);
+    const logo=document.querySelector('header .logo'); if(logo) logo.textContent=BRAND;
     replaceText(document.body);
     setHeadline();
   }
