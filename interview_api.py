@@ -137,7 +137,7 @@ RESPUESTA DEL CANDIDATO:
             if '/pro.js' not in body:
                 body = body.replace('</body>', '<script src="/pro.js?v=6"></script></body>')
             if '/profix.js' not in body:
-                body = body.replace('</body>', '<script src="/profix.js?v=1"></script></body>')
+                body = body.replace('</body>', '<script src="/profix.js?v=2"></script></body>')
             if '/photo.js' not in body:
                 body = body.replace('</body>', '<script src="/photo.js?v=2"></script></body>')
             if '/templates.js' not in body:
@@ -185,7 +185,7 @@ RESPUESTA DEL CANDIDATO:
     @app.get('/printfix.js')
     def printfix_js():
         from flask import send_from_directory
-        return send_from_directory('.', 'printfix.js', mimetype='application/javascript')
+        return send_from_directory('.', 'printfix.js', mimetype='text/javascript')
 
     @app.get('/cvgo_stylefix.js')
     def cvgo_stylefix_js():
