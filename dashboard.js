@@ -1,18 +1,19 @@
 (function(){
+  'use strict';
   function q(s){return document.querySelector(s)}
   function scrollToEditor(){const p=q('.panel');if(p)p.scrollIntoView({behavior:'smooth',block:'start'})}
   function focusOffer(){
     const candidates=[...document.querySelectorAll('textarea,input')];
     const el=candidates.find(x=>/oferta/i.test(x.placeholder||'')||x.id==='job');
-    if(el){const cover=q('#coverTab');if(cover&&cover.classList.contains('hidden')&&typeof tab==='function'){const b=q('.tab');tab('cv',b)};el.scrollIntoView({behavior:'smooth',block:'center'});el.focus();return}
+    if(el){const cover=q('#coverTab');if(cover&&cover.classList.contains('hidden')&&typeof tab==='function'){const b=q('.tab');tab('cv',b)}el.scrollIntoView({behavior:'smooth',block:'center'});el.focus();return}
     scrollToEditor();
   }
   function openTab(name){if(typeof tab!=='function')return;const btn=[...document.querySelectorAll('.tab')].find(b=>b.textContent.trim().toLowerCase()===name);tab(name==='carta'?'cover':name==='entrevista'?'interview':'cv',btn);scrollToEditor()}
   function build(){
-    if(!q('#main')||q('.dash-sidebar'))return;
+    if(!q('#main')||q('.dash-sidebar'))return true;
+    const main=q('#main'),app=q('.app');
+    if(!app)return false;
     document.body.classList.add('cvgo-dashboard');
-    const main=q('#main'), app=q('.app');
-    if(!app)return;
     const side=document.createElement('aside');side.className='dash-sidebar';side.innerHTML=`
       <div class="dash-brand"><div class="dash-brand-icon">CV</div><div><b>CVProfit</b><small>Tu CV, más oportunidades</small></div></div>
       <nav class="dash-nav">
@@ -25,10 +26,8 @@
       <div class="dash-pro"><div class="pro-title">✨ Saca todo el partido a CVProfit</div><p>Tu CV, cartas, entrevistas y análisis ATS en un solo lugar.</p><button data-go="cv">Continuar con mi CV →</button></div>
       <div class="dash-quote">“Un mejor CV te acerca a un mejor futuro”<br><br>— CVProfit</div>`;
     main.insertBefore(side,app);
-
     const top=document.createElement('div');top.className='dash-top';top.innerHTML=`<div class="dash-welcome"><h1>Hola, bienvenido a CVProfit 👋</h1><p>Crea, optimiza y presenta tu perfil profesional con una imagen impecable.</p></div><div class="dash-user"><div class="dash-avatar">CV</div><div><b id="dashUserEmail">Tu cuenta CVProfit</b><small>Sesión activa</small></div></div>`;
     app.insertBefore(top,app.firstChild);
-
     const quick=document.createElement('div');quick.className='dash-quick';quick.innerHTML=`
       <button class="q1" data-go="cv"><span class="qicon">📄</span><span><b>Crear CV</b><small>Diseña tu currículum profesional</small></span><strong>→</strong></button>
       <button class="q2" data-go="carta"><span class="qicon">✉️</span><span><b>Carta de presentación</b><small>Genera una carta personalizada</small></span><strong>→</strong></button>
@@ -36,19 +35,26 @@
       <button class="q4" data-go="oferta"><span class="qicon">🎯</span><span><b>Analizar oferta</b><small>Optimiza tu CV para una oferta de empleo</small></span><strong>→</strong></button>`;
     app.insertBefore(quick,app.firstChild.nextSibling);
     const tip=document.createElement('div');tip.className='dash-tip';tip.innerHTML='💡 <b>Consejo:</b> completa primero tu experiencia y habilidades. Después utiliza la IA para adaptar tu CV a cada oferta.';app.insertBefore(tip,app.querySelector('.panel'));
-
-    const go=(action)=>{document.querySelectorAll('.dash-nav button').forEach(b=>b.classList.toggle('active',b.dataset.go===action));if(action==='inicio')window.scrollTo({top:0,behavior:'smooth'});else if(action==='cv')openTab('cv');else if(action==='carta')openTab('carta');else if(action==='entrevista')openTab('entrevista');else if(action==='oferta')focusOffer()};
-    document.querySelectorAll('[data-go]').forEach(b=>b.addEventListener('click',()=>go(b.dataset.go)));
+    const go=(action)=>{document.querySelectorAll('.dash-nav button').forEach(b=>b.classList.toggle('active',b.dataset.go===action));if(action==='inicio')window.scrollTo({top:0,behavior:'smooth'});else if(action==='cv')openTab('cv');else if(action==='carta')openTab('carta');else if(action==='entrevista')openTab('entrevista');else focusOffer()};
+    document.querySelectorAll('[data-go]').forEach(b=>{if(!b.dataset.dashBound){b.dataset.dashBound='1';b.addEventListener('click',()=>go(b.dataset.go))}});
     const email=q('#headerStatus');if(email&&email.textContent&&email.textContent.includes('@')){const u=q('#dashUserEmail');if(u)u.textContent=email.textContent}
+    return true;
   }
-  function check(){if(q('#main')&&!q('#main').classList.contains('hidden'))build()}
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(check,80));else setTimeout(check,80);
-  new MutationObserver(check).observe(document.documentElement,{subtree:true,attributes:true,attributeFilter:['class']});
+  function check(){
+    if(q('#main'))build();
+  }
+  function start(){
+    check();
+    [100,300,700,1200,2000,3500,5000].forEach(ms=>setTimeout(check,ms));
+    try{new MutationObserver(check).observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class']})}catch(e){}
+  }
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',start,{once:true});else start();
 
   function ensureImporter(){
     if(q('#cvgoImport'))return;
-    const s=document.createElement('script');s.src='/cvimport.js?v=7';s.dataset.cvgoImport='1';s.onerror=addInlineImporter;document.head.appendChild(s);
-    setTimeout(()=>{if(!q('#cvgoImport'))addInlineImporter()},900);
+    if(q('#cvimportLoader'))return;
+    const s=document.createElement('script');s.id='cvimportLoader';s.src='/cvimport.js?v=8';s.defer=true;s.onerror=addInlineImporter;document.head.appendChild(s);
+    setTimeout(()=>{if(!q('#cvgoImport'))addInlineImporter()},1200);
   }
   function addInlineImporter(){
     if(q('#cvgoImport')||!q('#cvTab'))return;
@@ -61,7 +67,7 @@
       const f=file.files&&file.files[0];if(!f)return;btn.disabled=true;btn.style.opacity='.6';msg.textContent='⏳ Analizando tu CV...';msg.style.color='#667085';
       try{
         const fd=new FormData();fd.append('file',f);const r=await fetch('/api/cv-import',{method:'POST',body:fd,credentials:'same-origin'});const j=await r.json();if(!r.ok)throw j;
-        if(!j.data){throw {error:'IMPORT_FAILED'}}
+        if(!j.data)throw {error:'IMPORT_FAILED'};
         if(!confirm('La información encontrada en tu PDF sustituirá los datos actuales de tu CV. ¿Quieres continuar?')){msg.textContent='Importación cancelada.';return}
         const d=j.data;['name','role','email','phone','city','linkedin','summary','skills'].forEach(k=>{const el=document.getElementById(k);if(el&&d[k]!=null){el.value=d[k];el.dispatchEvent(new Event('input',{bubbles:true}))}});
         const fill=(id,items,add,selectors)=>{const c=q('#'+id);if(!c)return;c.innerHTML='';(items||[]).forEach(x=>{add();const a=[...document.querySelectorAll('#'+id+' .item')].at(-1);if(!a)return;selectors.forEach(([s,k])=>{const el=a.querySelector(s);if(el){el.value=x[k]||'';el.dispatchEvent(new Event('input',{bubbles:true))}})});if(!items||!items.length)add()};
@@ -73,6 +79,5 @@
       finally{btn.disabled=false;btn.style.opacity='1';file.value=''}
     };
   }
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(ensureImporter,180),{once:true});
-  else setTimeout(ensureImporter,180);
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(ensureImporter,250),{once:true});else setTimeout(ensureImporter,250);
 })();
