@@ -45,32 +45,18 @@
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(check,80));else setTimeout(check,80);
   new MutationObserver(check).observe(document.documentElement,{subtree:true,attributes:true,attributeFilter:['class']});
 
-  // Repair only missing frontend modules after authentication. Each check uses a
-  // real capability/DOM marker instead of assuming that a script tag exists.
-  const scriptMap={
-    persist:{src:'/cvpersist.js?v=5',test:()=>typeof window.cvgoServerSave==='function'},
-    ai:{src:'/ai.js?v=5',test:()=>typeof window.generateAICV==='function'},
-    interview:{src:'/interview.js?v=5',test:()=>!!document.querySelector('#interviewTab')||!!document.querySelector('#interview')},
-    pro:{src:'/pro.js?v=8',test:()=>!!document.querySelector('#cvgoProModal')||!!document.querySelector('.cvgoPro')||!!document.querySelector('.cvgoLanding')},
-    import:{src:'/cvimport.js?v=3',test:()=>!!document.querySelector('#cvgoImport')}
-  };
-  const loaded={};
-  function retryModule(name){
-    const item=scriptMap[name];if(!item||loaded[name]||item.test())return;
-    loaded[name]=true;
-    const s=document.createElement('script');s.src=item.src;s.defer=false;s.dataset.cvgoRetry=name;
-    s.onload=()=>{};s.onerror=()=>{loaded[name]=false};
+  // Keep a single lightweight fallback for the CV importer. Do not poll the
+  // server repeatedly: the home page already loads the module directly.
+  function ensureImporter(){
+    if(q('#cvgoImport'))return true;
+    if(document.querySelector('script[data-cvgo-import]'))return false;
+    const s=document.createElement('script');
+    s.src='/cvimport.js?v=5';
+    s.defer=false;
+    s.dataset.cvgoImport='1';
     document.head.appendChild(s);
+    return false;
   }
-  async function stabilize(){
-    try{
-      const r=await fetch('/api/me',{credentials:'same-origin',cache:'no-store'});const u=await r.json();
-      if(!u?.logged_in)return;
-      setTimeout(()=>{retryModule('persist');retryModule('ai');retryModule('interview');retryModule('pro');retryModule('import')},250);
-      setTimeout(()=>{retryModule('persist');retryModule('ai');retryModule('interview');retryModule('pro');retryModule('import')},1200);
-      setTimeout(()=>{retryModule('persist');retryModule('ai');retryModule('interview');retryModule('pro');retryModule('import')},2500);
-    }catch(e){}
-  }
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',stabilize,{once:true});else stabilize();
-  window.addEventListener('pageshow',()=>setTimeout(stabilize,150));
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>{setTimeout(ensureImporter,150);setTimeout(ensureImporter,900)},{once:true});
+  else {setTimeout(ensureImporter,150);setTimeout(ensureImporter,900)}
 })();
