@@ -91,3 +91,21 @@ CV EXTRAÍDO DEL PDF:
         return jsonify(ok=True, data=out, pages=len(pages))
 
 register_cv_import(__import__('app').app)
+
+# Inject the importer script after the existing home wrappers are installed.
+_original_home = app.view_functions.get('home')
+if _original_home:
+    def _home_with_cv_import(*args, **kwargs):
+        response = _original_home(*args, **kwargs)
+        body = response.get_data(as_text=True)
+        if '/cvimport.js' not in body:
+            body = body.replace('</body>', '<script src="/cvimport.js?v=1"></script></body>')
+            response.set_data(body)
+            response.headers.pop('Content-Length', None)
+        return response
+    app.view_functions['home'] = _home_with_cv_import
+
+@app.get('/cvimport.js')
+def cvimport_js():
+    from flask import send_from_directory
+    return send_from_directory('.', 'cvimport.js', mimetype='application/javascript')
