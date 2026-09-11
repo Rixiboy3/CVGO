@@ -20,12 +20,12 @@
   function fillExperience(items){
     clearDynamic('experience');
     if(!items.length){if(typeof addExp==='function')addExp();return;}
-    items.forEach(x=>{if(typeof addExp==='function')addExp();const item=[...document.querySelectorAll('#experience .item')].at(-1);if(!item)return;const set=(sel,v)=>{const e=item.querySelector(sel);if(e){e.value=v||'';e.dispatchEvent(new Event('input',{bubbles:true))}};set('.ep',x.position);set('.ec',x.company);set('.ef',x.from);set('.et',x.to);set('.ed',x.description)});
+    items.forEach(x=>{if(typeof addExp==='function')addExp();const all=document.querySelectorAll('#experience .item'),item=all[all.length-1];if(!item)return;const set=(sel,v)=>{const e=item.querySelector(sel);if(e){e.value=v||'';e.dispatchEvent(new Event('input',{bubbles:true))}};set('.ep',x.position);set('.ec',x.company);set('.ef',x.from);set('.et',x.to);set('.ed',x.description)});
   }
   function fillEducation(items){
     clearDynamic('education');
     if(!items.length){if(typeof addEdu==='function')addEdu();return;}
-    items.forEach(x=>{if(typeof addEdu==='function')addEdu();const item=[...document.querySelectorAll('#education .item')].at(-1);if(!item)return;const set=(sel,v)=>{const e=item.querySelector(sel);if(e){e.value=v||'';e.dispatchEvent(new Event('input',{bubbles:true))}};set('.etitle',x.title);set('.eschool',x.school);set('.eyear',x.year)});
+    items.forEach(x=>{if(typeof addEdu==='function')addEdu();const all=document.querySelectorAll('#education .item'),item=all[all.length-1];if(!item)return;const set=(sel,v)=>{const e=item.querySelector(sel);if(e){e.value=v||'';e.dispatchEvent(new Event('input',{bubbles:true))}};set('.etitle',x.title);set('.eschool',x.school);set('.eyear',x.year)});
   }
   function apply(data){
     ['name','role','email','phone','city','linkedin','summary','skills'].forEach(k=>setVal(k,data[k]));
@@ -42,15 +42,21 @@
     overlay.onclick=e=>{if(e.target===overlay)close()};
   }
   function addUI(){
-    if($('cvgoImport'))return;
-    const tab=$('cvTab');if(!tab)return;
+    if($('cvgoImport'))return true;
+    const tab=$('cvTab');if(!tab)return false;
     const box=document.createElement('div');box.id='cvgoImport';box.className='cvgoImport';
     box.innerHTML=`<div class="cvgoImportTop"><div><h3>📄 ¿Ya tienes un CV?</h3><p>Sube tu PDF y CVProfit extraerá tus datos para rellenar automáticamente este nuevo CV.</p></div><button type="button" class="cvgoImportBtn" id="cvgoImportBtn">Importar mi CV</button></div><input id="cvgoImportFile" type="file" accept="application/pdf,.pdf" hidden><div id="cvgoImportMsg" class="cvgoImportMsg"></div>`;
     tab.insertBefore(box,tab.firstElementChild);
-    const btn=$('cvgoImportBtn'),file=$('cvgoImportFile');btn.onclick=()=>file.click();
-    file.onchange=async()=>{const f=file.files?.[0];if(!f)return;const msg=$('cvgoImportMsg');btn.disabled=true;msg.className='cvgoImportMsg';msg.textContent='⏳ Analizando tu CV...';const fd=new FormData();fd.append('file',f);try{const r=await fetch('/api/cv-import',{method:'POST',body:fd});const j=await r.json();if(!r.ok)throw j;confirmImport(j.data,j.pages,msg)}catch(e){const text=e.error==='PDF_ONLY'?'Solo puedes subir un archivo PDF.':e.error==='FILE_TOO_LARGE'?'El PDF pesa demasiado (máximo 8 MB).':e.error==='PDF_NO_TEXT'?'No hemos podido leer texto del PDF. Si es un CV escaneado como imagen, prueba con un PDF que permita seleccionar el texto.':e.error==='TRIAL_EXPIRED'?'Tu prueba gratuita ha terminado. Activa PRO para importar tu CV.':e.error==='AI_NOT_CONFIGURED'?'La importación inteligente no está configurada todavía.':'No hemos podido importar el CV. Comprueba el PDF e inténtalo de nuevo.';msg.className='cvgoImportMsg err';msg.textContent='⚠ '+text}finally{btn.disabled=false;file.value=''}};
+    const btn=$('cvgoImportBtn'),file=$('cvgoImportFile');
+    btn.onclick=()=>file.click();
+    file.onchange=async()=>{const f=file.files?.[0];if(!f)return;const msg=$('cvgoImportMsg');btn.disabled=true;msg.className='cvgoImportMsg';msg.textContent='⏳ Analizando tu CV...';const fd=new FormData();fd.append('file',f);try{const r=await fetch('/api/cv-import',{method:'POST',body:fd,credentials:'same-origin'});const j=await r.json();if(!r.ok)throw j;confirmImport(j.data,j.pages,msg)}catch(e){const text=e.error==='PDF_ONLY'?'Solo puedes subir un archivo PDF.':e.error==='FILE_TOO_LARGE'?'El PDF pesa demasiado (máximo 8 MB).':e.error==='PDF_NO_TEXT'?'No hemos podido leer texto del PDF. Si es un CV escaneado como imagen, prueba con un PDF que permita seleccionar el texto.':e.error==='TRIAL_EXPIRED'?'Tu prueba gratuita ha terminado. Activa PRO para importar tu CV.':e.error==='AI_NOT_CONFIGURED'?'La importación inteligente no está configurada todavía.':'No hemos podido importar el CV. Comprueba el PDF e inténtalo de nuevo.';msg.className='cvgoImportMsg err';msg.textContent='⚠ '+text}finally{btn.disabled=false;file.value=''}};
+    return true;
   }
   function init(){styles();addUI()}
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init);else init();
-  const old=window.loadUser;if(typeof old==='function')window.loadUser=async function(){const r=await old.apply(this,arguments);setTimeout(addUI,50);return r};
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',init,{once:true});else init();
+  // The CV editor can be revealed/populated after this script executes. Keep a
+  // lightweight observer so the importer appears without requiring F5.
+  const observer=new MutationObserver(()=>{if(addUI())observer.disconnect()});
+  observer.observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class']});
+  let attempts=0;const timer=setInterval(()=>{if(addUI()||++attempts>=40)clearInterval(timer)},250);
 })();
