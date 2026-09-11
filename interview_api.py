@@ -135,7 +135,7 @@ RESPUESTA DEL CANDIDATO:
             if '/interview.js' not in body:
                 body = body.replace('</body>', '<script src="/interview.js?v=3"></script></body>')
             if '/pro.js' not in body:
-                body = body.replace('</body>', '<script src="/pro.js?v=4"></script></body>')
+                body = body.replace('</body>', '<script src="/pro.js?v=5"></script></body>')
             if '/profix.js' not in body:
                 body = body.replace('</body>', '<script src="/profix.js?v=1"></script></body>')
             if '/photo.js' not in body:
