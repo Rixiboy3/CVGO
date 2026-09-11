@@ -122,8 +122,12 @@
       if(me.trial_active){
         const days=Number(me.trial_days_left||0);
         banner.textContent=days===1?'⚡ Tu prueba termina hoy · Ver CVProfit PRO':`🎁 Tu prueba gratuita está activa · ${days} días restantes`;
-      }else if(me.pro)banner.textContent='⭐ CVProfit PRO activo';
-      else banner.textContent='🔒 Tu prueba gratuita ha terminado · Activa PRO para continuar';
+      }else if(me.pro){
+        const end=billing?.current_period_end?new Date(billing.current_period_end).toLocaleDateString('es-ES'):'';
+        banner.textContent=billing?.cancel_at_period_end
+          ? `⭐ CVProfit PRO activo · Finaliza el ${end||'final del periodo actual'}`
+          : `⭐ CVProfit PRO activo · Próxima renovación: ${end||'según tu plan'}`;
+      }else banner.textContent='🔒 Tu prueba gratuita ha terminado · Activa PRO para continuar';
       banner.onclick=openPro;
     }
     if(me.pro){const f=$('cvgoProFloat');if(f)f.remove();}
