@@ -45,14 +45,12 @@
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(check,80));else setTimeout(check,80);
   new MutationObserver(check).observe(document.documentElement,{subtree:true,attributes:true,attributeFilter:['class']});
 
-  function loadOnce(id,src){
-    if(document.getElementById(id)||document.querySelector('script[data-cvgo-module="'+id+'"]'))return;
-    const s=document.createElement('script');s.id=id;s.src=src;s.dataset.cvgoModule=id;s.defer=false;document.head.appendChild(s);
+  // The persistence module is already responsible for restoring the saved CV.
+  // Only load the importer fallback once; do not boot a second /api/me + /api/cv flow.
+  function ensureImporter(){
+    if(q('#cvgoImport')||document.querySelector('script[data-cvgo-import]'))return;
+    const s=document.createElement('script');s.src='/cvimport.js?v=5';s.dataset.cvgoImport='1';document.head.appendChild(s);
   }
-  function ensureModules(){
-    loadOnce('cvgoBootV1','/cvboot.js?v=1');
-    loadOnce('cvgoImportV5','/cvimport.js?v=5');
-  }
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(ensureModules,180),{once:true});
-  else setTimeout(ensureModules,180);
+  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',()=>setTimeout(ensureImporter,250),{once:true});
+  else setTimeout(ensureImporter,250);
 })();
