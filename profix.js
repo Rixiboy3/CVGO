@@ -1,5 +1,13 @@
 (function(){
   const $=id=>document.getElementById(id);
+  function removePublicLanding(){
+    const landing=$('cvgoLanding');
+    const pitch=$('cvgoAuthPitch');
+    if(landing)landing.remove();
+    if(pitch)pitch.remove();
+    const auth=$('auth');
+    if(auth)auth.classList.add('hidden');
+  }
   function addStyles(){
     if($('cvprofitManageStyles')) return;
     const style=document.createElement('style');style.id='cvprofitManageStyles';
@@ -30,7 +38,7 @@
     if(c)c.onclick=async()=>{if(!confirm('¿Quieres cancelar la renovación automática? Mantendrás PRO hasta el final del periodo ya pagado.'))return;c.disabled=true;c.textContent='Cancelando...';try{const r=await fetch('/api/cancel-subscription',{method:'POST',credentials:'same-origin'});const j=await r.json();if(!r.ok)throw j;m.remove();location.reload();}catch(e){c.disabled=false;c.textContent='Cancelar renovación';$('cvprofitMsg').textContent='No se ha podido cancelar la renovación. Inténtalo de nuevo.'}};
   }
   async function init(){
-    try{const r=await fetch('/api/me',{credentials:'same-origin',cache:'no-store'});const me=await r.json();if(!me?.logged_in)return;addStyles();
+    try{const r=await fetch('/api/me',{credentials:'same-origin',cache:'no-store'});const me=await r.json();if(!me?.logged_in)return;removePublicLanding();addStyles();
       const banner=$('trialBanner');
       if(banner){banner.style.cursor='pointer';banner.title=me.pro?'Gestionar PRO':'Activar PRO';if(me.trial_active){const days=Number(me.trial_days_left||0);banner.textContent=days===1?'⚡ Tu prueba termina hoy · Ver PRO':`🎁 Prueba gratuita activa · ${days} días restantes`;}else if(me.pro){const end=formatProEnd(me);banner.textContent=billingCancelled(me)?`⭐ CVProfit PRO activo · Finaliza el ${end||'final del periodo'}`:end?`⭐ CVProfit PRO activo · Próxima renovación: ${end}`:'⭐ CVProfit PRO activo';}else{banner.textContent='🔒 Tu acceso actual ha finalizado · Ya puedes activar PRO';}banner.onclick=()=>{if(me.pro)openManage(me);else openActivation(me);};}
       if(me.pro){if($('cvprofitActivateBtn'))$('cvprofitActivateBtn').remove();if(!$('cvprofitManageBtn')){const b=document.createElement('button');b.id='cvprofitManageBtn';b.textContent='⚙ Gestionar PRO';b.onclick=()=>openManage(me);document.body.appendChild(b);}}else if(!$('cvprofitActivateBtn')){const b=document.createElement('button');b.id='cvprofitActivateBtn';b.textContent='⭐ Activar PRO';b.onclick=()=>openActivation(me);document.body.appendChild(b);}
