@@ -8,15 +8,28 @@ function styles(){
 function setVal(id,v){var e=q(id);if(!e||v==null)return;e.value=v;e.dispatchEvent(new Event('input',{bubbles:true}))}
 function fillExp(items){var box=q('experience');if(!box)return;box.innerHTML='';if(!items.length){if(typeof addExp==='function')addExp();return}items.forEach(function(x){if(typeof addExp!=='function')return;addExp();var all=box.querySelectorAll('.item'),it=all[all.length-1];if(!it)return;[['.ep',x.position],['.ec',x.company],['.ef',x.from],['.et',x.to],['.ed',x.description]].forEach(function(a){var e=it.querySelector(a[0]);if(e){e.value=a[1]||'';e.dispatchEvent(new Event('input',{bubbles:true}))}})})}
 function fillEdu(items){var box=q('education');if(!box)return;box.innerHTML='';if(!items.length){if(typeof addEdu==='function')addEdu();return}items.forEach(function(x){if(typeof addEdu!=='function')return;addEdu();var all=box.querySelectorAll('.item'),it=all[all.length-1];if(!it)return;[['.etitle',x.title],['.eschool',x.school],['.eyear',x.year]].forEach(function(a){var e=it.querySelector(a[0]);if(e){e.value=a[1]||'';e.dispatchEvent(new Event('input',{bubbles:true}))}})})}
-function apply(data){['name','role','email','phone','city','linkedin','summary','skills'].forEach(function(k){setVal(k,data[k])});fillExp(data.experience||[]);fillEdu(data.education||[]);if(typeof render==='function')render()}
+function apply(data){['name','role','email','phone','city','linkedin','summary','skills'].forEach(function(k){setVal(k,data[k])});fillExp(data.experience||[]);fillEdu(data.education||[]);if(typeof render==='function')render();if(typeof window.cvgoServerSave==='function')window.cvgoServerSave()}
 function confirmImport(data,pages,msg){var old=q('cvgoImportModal');if(old)old.remove();var o=document.createElement('div');o.id='cvgoImportModal';o.className='cvgoImportModal';o.innerHTML='<div><h3>⚠️ Reemplazar el contenido actual</h3><p>La información encontrada en tu PDF sustituirá los datos que tienes actualmente en el CV. ¿Quieres continuar?</p><div class="cvgoImportActions"><button class="cancel">Cancelar</button><button class="apply">Sí, importar CV</button></div></div>';document.body.appendChild(o);o.querySelector('.cancel').onclick=function(){o.remove()};o.querySelector('.apply').onclick=function(){o.remove();apply(data);msg.className='cvgoImportMsg ok';msg.textContent='✓ CV importado correctamente. Revisa los datos antes de descargarlo.'};o.onclick=function(e){if(e.target===o)o.remove()}}
+function errorText(e){
+ var code=e&&e.error||'';
+ if(code==='PDF_ONLY')return'Solo puedes subir un archivo PDF.';
+ if(code==='FILE_TOO_LARGE')return'El PDF pesa demasiado (máximo 8 MB).';
+ if(code==='PDF_NO_TEXT')return'No hemos podido leer texto del PDF. Si es un escaneo, necesitamos OCR.';
+ if(code==='PDF_READ_FAILED')return'No hemos podido abrir ese PDF. Prueba con otra copia del archivo.';
+ if(code==='TRIAL_EXPIRED')return'Tu prueba gratuita ha terminado. Activa PRO para importar tu CV.';
+ if(code==='AI_NOT_CONFIGURED')return'La importación inteligente no está configurada todavía en el servidor.';
+ if(code==='AI_INVALID_RESPONSE')return'La IA respondió en un formato no válido. Inténtalo de nuevo.';
+ if(code==='AI_REQUEST_FAILED')return'No se pudo procesar el CV con la IA. El servidor ha probado modelos alternativos; inténtalo de nuevo en unos segundos.';
+ if(code==='LOGIN_REQUIRED')return'Tu sesión ha caducado. Vuelve a iniciar sesión.';
+ return'No hemos podido importar el CV. Comprueba el PDF e inténtalo de nuevo.';
+}
 function addUI(){
  var tab=q('cvTab');if(!tab)return false;
  if(q('cvgoImportCard'))return true;
  styles();var card=document.createElement('div');card.id='cvgoImportCard';card.className='cvgoImportCard';card.innerHTML='<div><b>📄 Importa tu CV automáticamente</b><p>Sube tu CV en PDF y CVProfit extraerá tus datos para rellenar el formulario.</p><div id="cvgoImportMsg" class="cvgoImportMsg"></div></div><button type="button" id="cvgoImportLaunch">Importar mi CV</button><input id="cvgoImportFile" type="file" accept="application/pdf,.pdf" hidden>';
  var tabs=tab.parentElement.querySelector('.tabs');if(tabs&&tabs.nextElementSibling===tab)tabs.insertAdjacentElement('afterend',card);else tab.insertBefore(card,tab.firstChild);
  var btn=q('cvgoImportLaunch'),file=q('cvgoImportFile'),msg=q('cvgoImportMsg');
- btn.onclick=function(){file.click()};file.onchange=async function(){var f=file.files&&file.files[0];if(!f)return;btn.disabled=true;msg.className='cvgoImportMsg';msg.textContent='⏳ Analizando tu CV...';var fd=new FormData();fd.append('file',f);try{var r=await fetch('/api/cv-import',{method:'POST',body:fd,credentials:'same-origin'}),j=await r.json();if(!r.ok)throw j;confirmImport(j.data,j.pages,msg)}catch(e){var t=e&&e.error==='PDF_ONLY'?'Solo puedes subir un archivo PDF.':e&&e.error==='FILE_TOO_LARGE'?'El PDF pesa demasiado (máximo 8 MB).':e&&e.error==='PDF_NO_TEXT'?'No hemos podido leer texto del PDF.':e&&e.error==='TRIAL_EXPIRED'?'Tu prueba gratuita ha terminado. Activa PRO para importar tu CV.':e&&e.error==='AI_NOT_CONFIGURED'?'La importación inteligente no está configurada todavía.':'No hemos podido importar el CV. Comprueba el PDF e inténtalo de nuevo.';msg.className='cvgoImportMsg err';msg.textContent='⚠ '+t}finally{btn.disabled=false;file.value=''}};
+ btn.onclick=function(){file.click()};file.onchange=async function(){var f=file.files&&file.files[0];if(!f)return;btn.disabled=true;msg.className='cvgoImportMsg';msg.textContent='⏳ Analizando tu CV...';var fd=new FormData();fd.append('file',f);try{var r=await fetch('/api/cv-import',{method:'POST',body:fd,credentials:'same-origin'});var j={};try{j=await r.json()}catch(_){j={error:'SERVER_RESPONSE_INVALID'}}if(!r.ok)throw j;confirmImport(j.data,j.pages,msg)}catch(e){msg.className='cvgoImportMsg err';msg.textContent='⚠ '+errorText(e)}finally{btn.disabled=false;file.value=''}};
  return true
 }
 function init(){styles();addUI()}
