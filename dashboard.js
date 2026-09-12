@@ -2,6 +2,13 @@
 'use strict';
 var built=false;
 function q(s){return document.querySelector(s)}
+function fixPublicMobile(){
+ if(q('#cvgoPublicMobileFix'))return;
+ var auth=q('#auth'),main=q('#main');
+ if(!auth||!main||!auth.classList.contains('hidden')){
+  var style=document.createElement('style');style.id='cvgoPublicMobileFix';style.textContent='@media(max-width:650px){body:not(.cvgo-dashboard){display:flex!important;flex-direction:column!important;min-height:100vh!important}body:not(.cvgo-dashboard)>header{order:0!important;flex:0 0 auto!important}body:not(.cvgo-dashboard)>#auth{order:1!important;width:100%!important;max-width:430px!important;margin:8px auto 16px!important;padding:16px!important}body:not(.cvgo-dashboard)>#cvgoLanding{order:2!important;width:100%!important;margin:0 auto 24px!important}body:not(.cvgo-dashboard)>#main{order:3!important;width:100%!important}body:not(.cvgo-dashboard) #cvgoAuthPitch{display:none!important}body:not(.cvgo-dashboard) #auth .card{padding:24px 20px!important}body:not(.cvgo-dashboard) #auth h1{font-size:28px!important;margin-bottom:8px!important}body:not(.cvgo-dashboard) #authText{margin-top:0!important;line-height:1.45!important}}';document.head.appendChild(style);
+ }
+}
 function fixHeader(){
  var h=q('header');if(!h)return;
  h.style.cssText+=';display:flex!important;align-items:center!important;gap:16px!important;justify-content:flex-start!important;position:sticky!important;top:0!important;z-index:100!important;min-height:72px!important;padding:0 34px!important;';
@@ -24,7 +31,7 @@ function openTab(name){if(typeof window.tab!=='function')return;var btn=[...docu
 function focusOffer(){var el=[...document.querySelectorAll('textarea,input')].find(function(x){return /oferta/i.test(x.placeholder||'')||x.id==='job'});if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.focus()}}
 function build(){
  var main=q('#main'),app=q('.app');
- fixHeader();
+ fixPublicMobile();fixHeader();
  if(!main||!app||main.classList.contains('hidden'))return false;
  document.body.classList.add('cvgo-dashboard');
  var auth=q('#auth');if(auth){auth.classList.add('hidden');auth.style.setProperty('display','none','important')}
@@ -47,10 +54,10 @@ function build(){
  fitPreview();
  built=true;return true;
 }
-function boot(){fixHeader();if(build())return;if(!built)setTimeout(boot,250)}
+function boot(){fixPublicMobile();fixHeader();if(build())return;if(!built)setTimeout(boot,250)}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 window.addEventListener('load',boot);
 window.addEventListener('resize',fitPreview);
-var observer=new MutationObserver(function(){fixHeader();if(!built)boot();fitPreview()});
+var observer=new MutationObserver(function(){fixPublicMobile();fixHeader();if(!built)boot();fitPreview()});
 if(document.documentElement)observer.observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class']});
 })();
