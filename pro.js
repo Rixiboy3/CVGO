@@ -49,7 +49,19 @@
       .cvgoAuthPitch{margin-top:22px;padding:17px;border:1px solid #eaecf0;border-radius:14px;background:#f8fafc;text-align:left}.cvgoAuthPitch h3{margin:0 0 6px;font-size:15px;color:#101828}.cvgoAuthPitch p{margin:0 0 11px;font-size:12px;line-height:1.5;color:#667085}.cvgoAuthPitch ul{margin:0;padding:0;list-style:none;font-size:12px;line-height:1.8;color:#344054}.cvgoAuthPitch li:before{content:'✓';font-weight:900;margin-right:7px}.cvgoAuthPrice{margin-top:12px;font-size:12px;font-weight:800;color:#101828}.cvgoAuthPrice span{font-weight:500;color:#667085}
       .cvgoLanding{max-width:1080px;margin:34px auto 24px;padding:0 24px}.cvgoHero{display:grid;grid-template-columns:1.25fr .75fr;gap:28px;align-items:center;background:linear-gradient(135deg,#111827 0%,#1f2937 100%);color:#fff;border-radius:24px;padding:46px 44px;box-shadow:0 18px 50px #10182822}.cvgoHeroKicker{display:inline-block;padding:6px 10px;border-radius:999px;background:#ffffff18;border:1px solid #ffffff25;font-size:11px;font-weight:800;letter-spacing:.4px}.cvgoHero h1{margin:14px 0 12px;font-size:42px;line-height:1.05;letter-spacing:-1.2px}.cvgoHeroLead{margin:0;color:#d1d5db;font-size:16px;line-height:1.6;max-width:620px}.cvgoHeroCta{margin-top:22px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}.cvgoHeroCta button{border:0;border-radius:10px;padding:13px 18px;font-weight:900;cursor:pointer}.cvgoHeroCta .primaryCta{background:#fff;color:#111827}.cvgoHeroCta .secondaryCta{background:#ffffff12;color:#fff;border:1px solid #ffffff30}.cvgoHeroTrust{margin-top:12px;font-size:11px;color:#cbd5e1}.cvgoHeroCard{background:#fff;color:#111827;border-radius:18px;padding:22px;box-shadow:0 15px 40px #0003}.cvgoHeroCard .priceLabel{font-size:11px;color:#667085;font-weight:800}.cvgoHeroCard .price{font-size:34px;font-weight:900;margin:5px 0}.cvgoHeroCard .price small{font-size:13px;font-weight:500;color:#667085}.cvgoHeroCard .annual{margin-top:8px;padding:10px;border-radius:10px;background:#f2f4f7;font-size:12px;line-height:1.45}.cvgoHeroCard ul{margin:15px 0 0;padding:0;list-style:none;font-size:12px;line-height:1.9}.cvgoHeroCard li:before{content:'✓';font-weight:900;margin-right:7px}.cvgoLandingFeatures{display:grid;grid-template-columns:repeat(3,1fr);gap:12px;margin-top:14px}.cvgoFeature{background:#fff;border:1px solid #e5e7eb;border-radius:14px;padding:16px}.cvgoFeature b{display:block;font-size:13px;margin-bottom:5px}.cvgoFeature span{font-size:11px;color:#667085;line-height:1.5}.cvgoLandingTitle{text-align:center;margin:28px 0 10px;font-size:22px}.cvgoLandingSub{text-align:center;margin:0 0 16px;color:#667085;font-size:13px}.cvgoLanding.hide{display:none}
       @media(max-width:800px){.cvgoHero{grid-template-columns:1fr;padding:32px 25px}.cvgoHero h1{font-size:34px}.cvgoLandingFeatures{grid-template-columns:1fr}.cvgoHeroCard{max-width:460px}.cvgoLanding{padding:0 16px;margin-top:20px}}
-      @media(max-width:650px){.cvgoPlans{grid-template-columns:1fr}.cvgoAuthPitch{margin-top:18px}.cvgoHeroCta button{width:100%}}
+      @media(max-width:650px){
+        .cvgoPlans{grid-template-columns:1fr}
+        .cvgoHeroCta button{width:100%}
+        body.cvgo-public{display:flex;flex-direction:column;min-height:100vh}
+        body.cvgo-public>header{order:0;flex:0 0 auto}
+        body.cvgo-public>#auth{order:1;width:100%;max-width:430px;margin:8px auto 16px;padding:16px}
+        body.cvgo-public>#cvgoLanding{order:2;width:100%;margin:0 auto 24px}
+        body.cvgo-public>#main{order:3;width:100%}
+        body.cvgo-public #cvgoAuthPitch{display:none!important}
+        body.cvgo-public #auth .card{padding:24px 20px}
+        body.cvgo-public #auth h1{font-size:28px;margin-bottom:8px}
+        body.cvgo-public #authText{margin-top:0;line-height:1.45}
+      }
     `;document.head.appendChild(s);
   }
 
@@ -111,7 +123,7 @@
   async function init(){
     addStyles();
     me=await loadMe();
-    if(!me?.logged_in){addLanding();addAuthPitch()}
+    if(!me?.logged_in){document.body.classList.add('cvgo-public');addLanding();addAuthPitch()}
     addControls();
     await verifyPaidSession();
     const oldAnalyze=window.analyze;
