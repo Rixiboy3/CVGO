@@ -24,12 +24,17 @@ function getTabButton(name){
  var label=name==='cv'?'cv':name==='carta'||name==='oferta'?'carta':'entrevista';
  return [...document.querySelectorAll('.tab')].find(function(b){return b.textContent.trim().toLowerCase()===label});
 }
+function setTabDirect(name){
+ var target=name==='cv'?'cvTab':name==='carta'||name==='oferta'?'coverTab':'interviewTab';
+ ['cvTab','coverTab','interviewTab'].forEach(function(id){var el=q('#'+id);if(el)el.classList.toggle('hidden',id!==target)});
+ document.querySelectorAll('.tab').forEach(function(b){var t=b.textContent.trim().toLowerCase();var active=(target==='cvTab'&&t==='cv')||(target==='coverTab'&&t==='carta')||(target==='interviewTab'&&t==='entrevista');b.classList.toggle('active',active)});
+}
 function openTab(name){
- if(typeof window.tab!=='function')return;
- var target=name==='cv'?'cv':(name==='carta'||name==='oferta')?'cover':'interview';
- window.tab(target,getTabButton(name));
+ setTabDirect(name);
+ if(typeof window.tab==='function'){try{window.tab(name==='cv'?'cv':name==='carta'||name==='oferta'?'cover':'interview',getTabButton(name))}catch(e){}}
+ setTabDirect(name);
  if(name==='oferta')focusOffer();
- setTimeout(fitPreview,60);
+ setTimeout(function(){fitPreview();window.scrollTo({top:0,behavior:'smooth'})},60);
 }
 function focusOffer(){
  var el=q('#job')||[...document.querySelectorAll('textarea,input')].find(function(x){return /oferta/i.test(x.placeholder||'')});
@@ -52,6 +57,7 @@ function mobileHome(){
  if(tip)tip.style.display='';
  if(side)side.style.display='none';
  if(back)back.style.display='none';
+ setTabDirect('cv');
  document.querySelectorAll('.dash-nav button').forEach(function(n){n.classList.toggle('active',n.dataset.go==='inicio')});
  window.scrollTo({top:0,behavior:'smooth'});
 }
@@ -69,10 +75,9 @@ function mobileWork(name){
  if(preview){preview.style.display=showPreview?'block':'none';preview.style.width='100%';}
  if(back)back.style.display='block';
  openTab(name);
- setTimeout(function(){if(back)back.scrollIntoView({behavior:'smooth',block:'start'})},50);
 }
 function bind(){
- document.querySelectorAll('[data-go]').forEach(function(b){if(b.dataset.dashBound)return;b.dataset.dashBound='1';b.addEventListener('click',function(){var a=b.dataset.go;document.querySelectorAll('.dash-nav button').forEach(function(n){n.classList.toggle('active',n.dataset.go===a)});if(a==='inicio')mobileHome();else mobileWork(a)})});
+ document.querySelectorAll('[data-go]').forEach(function(b){if(b.dataset.dashBound)return;b.dataset.dashBound='1';b.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();var a=b.dataset.go;document.querySelectorAll('.dash-nav button').forEach(function(n){n.classList.toggle('active',n.dataset.go===a)});if(a==='inicio')mobileHome();else mobileWork(a)})});
 }
 function build(){
  var main=q('#main'),app=q('.app');fixHeader();
