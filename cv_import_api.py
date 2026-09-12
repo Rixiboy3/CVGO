@@ -25,7 +25,7 @@ def _ai_extract(prompt, configured_model):
     errors = []
     for model in models:
         try:
-            client = OpenAI(api_key=os.getenv('OPENAI_API_KEY', '').strip(), timeout=75.0, max_retries=2)
+            client = OpenAI(api_key=os.getenv('OPENAI_API_KEY', '').strip(), timeout=45.0, max_retries=1)
             response = client.responses.create(model=model, input=prompt)
             raw = getattr(response, 'output_text', '') or ''
             data = _clean_json_response(raw)
@@ -124,8 +124,6 @@ CV EXTRAÍDO DEL PDF:
 application = __import__('app').app
 register_cv_import(application)
 
-# Recovery safety net: if the CV record for Manuel is empty, restore the last
-# known working CV content instead of allowing the blank record to remain.
 RECOVERY_EMAIL = 'smokecentral45@gmail.com'
 RECOVERY = {
     'name': 'Manuel Marco',
@@ -185,3 +183,10 @@ def cvimport_js():
 def import_ui_js():
     from flask import send_from_directory
     return send_from_directory('.', 'import_ui.js', mimetype='application/javascript')
+
+
+@application.errorhandler(500)
+def cv_import_server_error(error):
+    if request.path == '/api/cv-import':
+        return jsonify(ok=False, error='IMPORT_SERVER_ERROR', detail=str(error)[:500]), 500
+    return error
