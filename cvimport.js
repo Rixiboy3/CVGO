@@ -70,12 +70,13 @@
   function preparePrint(){
     installPrint();
     const main=document.getElementById('main');
-    const preview=document.querySelector('#main .previewbox');
-    const cv=document.querySelector('#preview .cv,#preview .tm');
-    if(!main||!preview||!cv)return;
+    if(!main||!document.querySelector('#preview .cv,#preview .tm'))return;
 
     document.querySelectorAll('body>*').forEach(function(el){
-      if(el!==main){el.dataset.cvgoPrintHidden=el.style.display||'';el.style.setProperty('display','none','important');}
+      if(el!==main){
+        el.dataset.cvgoPrintHidden=el.style.display||'';
+        el.style.setProperty('display','none','important');
+      }
     });
     main.dataset.cvgoPrintDisplay=main.style.display||'';
     main.style.setProperty('display','block','important');
@@ -85,14 +86,6 @@
       el.dataset.cvgoPrintHidden=el.style.display||'';
       el.style.setProperty('display','none','important');
     });
-    preview.style.setProperty('display','block','important');
-    preview.style.setProperty('width','210mm','important');
-    preview.style.setProperty('height','auto','important');
-
-    cv.style.setProperty('width','210mm','important');
-    cv.style.setProperty('height','297mm','important');
-    cv.style.setProperty('max-height','297mm','important');
-    cv.style.setProperty('overflow','hidden','important');
   }
 
   function restorePrint(){
