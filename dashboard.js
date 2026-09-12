@@ -2,10 +2,22 @@
 'use strict';
 var built=false;
 function q(s){return document.querySelector(s)}
+function fixHeader(){
+ var h=q('header');if(!h)return;
+ h.style.cssText+=';display:flex!important;align-items:center!important;gap:16px!important;justify-content:flex-start!important;position:sticky!important;top:0!important;z-index:100!important;min-height:72px!important;padding:0 34px!important;';
+ var logo=h.querySelector('.logo');if(logo)logo.style.marginRight='auto';
+ var status=q('#headerStatus');if(status){status.style.cssText+=';margin:0!important;white-space:nowrap!important;max-width:360px!important;overflow:hidden!important;text-overflow:ellipsis!important;';}
+ var manage=q('#cvprofitManageBtn');if(manage&&manage.parentElement!==h){h.appendChild(manage)}
+ if(manage){manage.style.cssText+=';position:static!important;right:auto!important;top:auto!important;margin:0!important;white-space:nowrap!important;';}
+ var pro=q('#cvgoProBtn');if(pro&&pro.parentElement!==h)h.appendChild(pro);
+ if(pro){pro.style.cssText+=';position:static!important;margin:0!important;white-space:nowrap!important;';}
+ var logout=q('#cvgoLogoutBtn');if(logout){logout.style.cssText+=';margin:0 0 0 2px!important;white-space:nowrap!important;';}
+}
 function openTab(name){if(typeof window.tab!=='function')return;var btn=[...document.querySelectorAll('.tab')].find(function(b){return b.textContent.trim().toLowerCase()===name});window.tab(name==='carta'?'cover':name==='entrevista'?'interview':'cv',btn)}
 function focusOffer(){var el=[...document.querySelectorAll('textarea,input')].find(function(x){return /oferta/i.test(x.placeholder||'')||x.id==='job'});if(el){el.scrollIntoView({behavior:'smooth',block:'center'});el.focus()}}
 function build(){
  var main=q('#main'),app=q('.app');
+ fixHeader();
  if(!main||!app||main.classList.contains('hidden'))return false;
  document.body.classList.add('cvgo-dashboard');
  if(!q('.dash-sidebar')){
@@ -25,9 +37,9 @@ function build(){
  var hs=q('#headerStatus'),du=q('#dashUserEmail');if(hs&&du&&/@/.test(hs.textContent))du.textContent=hs.textContent.trim();
  built=true;return true;
 }
-function boot(){if(build())return;if(!built)setTimeout(boot,250)}
+function boot(){fixHeader();if(build())return;if(!built)setTimeout(boot,250)}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 window.addEventListener('load',boot);
-var observer=new MutationObserver(function(){if(!built)boot()});
+var observer=new MutationObserver(function(){fixHeader();if(!built)boot()});
 if(document.documentElement)observer.observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class']});
 })();
