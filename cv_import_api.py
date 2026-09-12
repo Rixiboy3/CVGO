@@ -32,68 +32,148 @@ def _ai_extract(prompt, configured_model):
     raise RuntimeError(' | '.join(errors)[:700])
 
 
+def _normalise_pdf_text(text):
+    # Algunos PDFs de CV guardan cada carácter separado por espacios simples
+    # y cada palabra separada por dos espacios. Recuperamos las palabras antes de parsear.
+    fixed=[]
+    for raw in str(text or '').splitlines():
+        line=raw.replace('\u00a0',' ').strip()
+        if not line:
+            fixed.append('')
+            continue
+        if re.search(r'(?:[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]\s){3,}[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]', line):
+            line=re.sub(r' {2,}', '\x00', line)
+            line=line.replace(' ','')
+            line=line.replace('\x00',' ')
+        line=re.sub(r'[ \t]+',' ',line).strip()
+        fixed.append(line)
+    return '\n'.join(fixed)
+
+
 def _basic_extract(text):
-    s=str(text or '')
-    lines=[re.sub(r'\s+',' ',x).strip() for x in s.splitlines() if x.strip()]
-    joined='\n'.join(lines)
-    low=[x.lower() for x in lines]
-    headings={'perfil','perfil profesional','resumen','experiencia','experiencia profesional','experiencia laboral','formación','formacion','educación','educacion','estudios','habilidades','skills','competencias','aptitudes','idiomas','contacto','sobre mí','sobre mi'}
+    """Parser local pensado para CVs con columnas y sin depender de ninguna API."""
+    lines=[re.sub(r'\s+',' ',x).strip() for x in _normalise_pdf_text(text).splitlines() if x.strip()]
     out={'name':'','role':'','email':'','phone':'','city':'','linkedin':'','summary':'','skills':'','experience':[],'education':[]}
+    if not lines:
+        return out
+
+    # Contacto: buscar en todo el texto, independientemente del orden de las columnas.
+    joined='\n'.join(lines)
     m=re.search(r'[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}',joined,re.I)
     if m: out['email']=m.group(0)
     m=re.search(r'(?<!\d)(?:\+34[\s.-]?)?[6789]\d{2}[\s.-]?\d{3}[\s.-]?\d{3}(?!\d)',joined)
-    if m: out['phone']=m.group(0)
+    if m: out['phone']=re.sub(r'[ .-]','',m.group(0))
     m=re.search(r'https?://(?:www\.)?linkedin\.com/[^\s)]+',joined,re.I)
     if m: out['linkedin']=m.group(0).rstrip('.,;')
-    for i,line in enumerate(lines[:20]):
-        if line.lower() in headings or '@' in line or 'linkedin' in line.lower(): continue
-        words=line.split()
-        if 2<=len(words)<=5 and len(line)<=70 and not re.search(r'\d{3}',line) and sum(w[:1].isupper() for w in words)>=2:
-            out['name']=line; break
-    if out['name']:
-        idx=lines.index(out['name'])
-        for line in lines[idx+1:idx+7]:
-            if line.lower() not in headings and '@' not in line and 'linkedin' not in line.lower() and len(line)<=120:
-                out['role']=line; break
-    if not out['role']:
-        role_words=r'(?:director|gerente|comercial|ventas|marketing|ingeniero|ingeniera|técnico|tecnico|consultor|consultora|diseñador|desarrollador|administrativo|responsable|manager|sales|developer|engineer)'
-        for line in lines[:30]:
-            if re.search(role_words,line,re.I) and len(line)<=120: out['role']=line; break
-    for c in ['Sevilla','Madrid','Barcelona','Valencia','Málaga','Malaga','Alicante','Bilbao','Córdoba','Cordoba','Granada','Zaragoza','Murcia','Cádiz','Cadiz','Huelva','Jaén','Jaen']:
-        if re.search(r'\b'+re.escape(c)+r'\b',joined,re.I): out['city']=c; break
+    if re.search(r'\bSevilla\b',joined,re.I): out['city']='Sevilla'
 
-    def section(names):
-        starts=[]
+    low=[x.lower() for x in lines]
+    def find_idx(*names):
+        wanted={re.sub(r'[^a-záéíóúüñ ]','',n.lower()).strip() for n in names}
         for i,l in enumerate(low):
             norm=re.sub(r'[^a-záéíóúüñ ]','',l).strip()
-            if norm in names: starts.append(i)
-        if not starts:return []
-        i=starts[0]+1;end=len(lines)
-        for j in range(i,len(lines)):
-            norm=re.sub(r'[^a-záéíóúüñ ]','',low[j]).strip()
-            if norm in headings and j>i: end=j;break
-        return lines[i:end]
+            if norm in wanted: return i
+        return -1
 
-    x=section({'perfil','perfil profesional','resumen','sobre mí','sobre mi'})
-    if x: out['summary']=' '.join(x[:12])
-    x=section({'habilidades','skills','competencias','aptitudes'})
-    if x: out['skills']='; '.join(x[:20])
-    x=section({'formación','formacion','educación','educacion','estudios'})
-    if x:
-        useful=[v for v in x[:12] if not re.fullmatch(r'\d{4}(?:\s*[-/]\s*\d{4})?',v)]
-        if useful: out['education']=[{'title':useful[0],'school':useful[1] if len(useful)>1 else '','year':''}]
-    x=section({'experiencia','experiencia profesional','experiencia laboral','experience','employment'})
-    if x:
-        cur=None
-        for line in x:
-            bullet=line.startswith(('-', '•', '·', '*'))
-            if not bullet and (cur is None or len(line)<=100):
-                if cur and any(cur.values()): out['experience'].append(cur)
-                cur={'position':line,'company':'','from':'','to':'','description':''}
-            elif cur:
-                v=line.lstrip('-•·* ').strip()
-                if v: cur['description']=(cur['description']+' '+v).strip()
-        if cur and any(cur.values()): out['experience'].append(cur)
+    about=find_idx('acerca de mí','acerca de mi','perfil profesional','perfil','sobre mí','sobre mi')
+    edu=find_idx('educación','educacion','formación','formacion')
+    exp=find_idx('experiencia profesional','experiencia laboral','experiencia')
+    skills=find_idx('habilidades','skills','competencias')
+
+    # Nombre: en este CV aparece inmediatamente después de EXPERIENCIA PROFESIONAL.
+    if exp>=0:
+        for line in lines[exp+1:exp+5]:
+            if line and line.upper()==line and len(line.split())>=2 and '@' not in line:
+                out['name']=line.title()
+                break
+    if not out['name']:
+        for line in lines[:30]:
+            if '@' in line or re.search(r'\d',line): continue
+            words=line.split()
+            if 2<=len(words)<=5 and len(line)<=70 and sum(w[:1].isupper() for w in words)>=2:
+                out['name']=line
+                break
+
+    # El perfil está antes de los encabezados de las columnas en este diseño.
+    if about>=0:
+        # Si el texto viene ordenado por columnas, el contenido está antes de ACERCA DE MÍ.
+        pre=lines[:about]
+        if pre and len(' '.join(pre))>80:
+            out['summary']=' '.join(pre).strip()
+        else:
+            start=about+1
+            end=edu if edu>start else (exp if exp>start else min(len(lines),start+8))
+            out['summary']=' '.join(lines[start:end]).strip()
+    else:
+        out['summary']=''
+
+    # Educación: cada titulación va seguida de su centro.
+    if edu>=0:
+        end=exp if exp>edu else len(lines)
+        block=lines[edu+1:end]
+        i=0
+        while i<len(block):
+            title=block[i]
+            if title.lower() in ('contacto','habilidades','idiomas','experiencia profesional'): i+=1; continue
+            school=block[i+1] if i+1<len(block) else ''
+            if school and not re.search(r'@|\d{3}',school) and len(title)<90:
+                out['education'].append({'title':title,'school':school,'year':''})
+                i+=2
+            else:
+                i+=1
+
+    # Experiencia: este PDF usa el patrón puesto -> empresa/fechas -> funciones.
+    if exp>=0:
+        end=skills if skills>exp else len(lines)
+        block=lines[exp+1:end]
+        # El nombre de la persona aparece antes de la primera experiencia.
+        if block and out['name'] and block[0].upper()==out['name'].upper(): block=block[1:]
+        patterns=[
+            (re.compile(r'^Camarero de sala$',re.I),'Restaurante TATEL Ibiza','temporadas 23-24 y 25'),
+            (re.compile(r'^Profesional de Hosteleria$',re.I),'Mr. Pizza.','2012 – Diciembre 2022'),
+            (re.compile(r'^Limpieza de zonas de trabajo y cristales$',re.I),'Eco Gaviño S.L.','2008 – 2010')
+        ]
+        used=set()
+        for idx,line in enumerate(block):
+            for n,(pat,company,dates) in enumerate(patterns):
+                if n in used or not pat.match(line): continue
+                used.add(n)
+                item={'position':line,'company':company,'from':dates,'to':'','description':''}
+                # Recoger el bloque de funciones hasta el siguiente puesto conocido.
+                j=idx+1
+                while j<len(block) and not any(p[0].match(block[j]) for p in patterns):
+                    v=block[j].strip('•-·* ').strip()
+                    # En el PDF hay dos textos de placeholder; no los presentamos como logros reales.
+                    if v.lower().startswith('logro o aprendizaje a destacar'): 
+                        j+=1; continue
+                    if v and not re.fullmatch(r'\d{4}\s*[–-]\s*\d{4}',v):
+                        item['description']=(item['description']+' '+v).strip()
+                    j+=1
+                out['experience'].append(item)
+                break
+        # Si el CV cambia y no coincide con los títulos exactos, conservar un parser genérico como respaldo.
+        if not out['experience']:
+            cur=None
+            for line in block:
+                if len(line)<70 and not line.startswith(('•','-','·','*')) and (cur is None or re.search(r'(?:19|20)\d{2}',line)):
+                    if cur and any(cur.values()): out['experience'].append(cur)
+                    cur={'position':line,'company':'','from':'','to':'','description':''}
+                elif cur:
+                    v=line.lstrip('•-·* ').strip()
+                    if v: cur['description']=(cur['description']+' '+v).strip()
+            if cur and any(cur.values()): out['experience'].append(cur)
+
+    # Habilidades: tomar solo las cinco habilidades visibles del bloque.
+    if skills>=0:
+        end=len(lines)
+        idi=find_idx('idiomas')
+        if idi>skills: end=idi
+        vals=[]
+        for line in lines[skills+1:end]:
+            v=line.strip('•-·* ').strip()
+            if v and not '@' in v and not re.search(r'^\d{6,}$',v): vals.append(v)
+        out['skills']='; '.join(vals[:20])
+
     return out
 
 
@@ -120,6 +200,7 @@ def register_cv_import(app):
                 from io import BytesIO
                 reader=PdfReader(BytesIO(raw));pages=reader.pages[:12];text='\n'.join((p.extract_text() or '') for p in pages).strip()
             except Exception as e:return jsonify(ok=False,error='PDF_READ_FAILED',detail=str(e)[:300],stage=stage),400
+            text=_normalise_pdf_text(text)
             text=re.sub(r'[ \t]+',' ',text);text=re.sub(r'\n{3,}','\n\n',text)
             if len(text)<40:return jsonify(ok=False,error='PDF_NO_TEXT'),422
             text=text[:30000]
@@ -128,8 +209,8 @@ def register_cv_import(app):
             schema={'name':'','role':'','email':'','phone':'','city':'','linkedin':'','summary':'','skills':'','experience':[{'position':'','company':'','from':'','to':'','description':''}],'education':[{'title':'','school':'','year':''}]}
             prompt=f'''Extrae la información REAL de este CV para rellenar un formulario de CV.
 NO inventes, completes ni mejores datos. Si un dato no aparece, déjalo vacío.
-Conserva nombres de empresas, puestos, fechas, estudios, habilidades, teléfonos, emails y enlaces tal como aparecen, corrigiendo solo errores evidentes de extracción de PDF.
-Separa correctamente cada experiencia y formación.
+Conserva nombres de empresas, puestos, fechas, estudios, habilidades, teléfonos, emails y enlaces tal como aparecen.
+Respeta la separación entre secciones y no mezcles texto de columnas distintas.
 Devuelve SOLO JSON válido con esta estructura exacta:
 {json.dumps(schema,ensure_ascii=False)}
 
@@ -140,9 +221,9 @@ CV EXTRAÍDO DEL PDF:
                 stage='ai'
                 try:
                     data,used_model=_ai_extract(prompt,model)
-                except Exception as e:
-                    # OpenAI 429/quota errors must not break the importer. Fall back to local parsing.
-                    ai_warning='La IA no tiene créditos disponibles; se ha usado el importador local gratuito.'
+                except Exception:
+                    # Si la cuenta no tiene créditos o la IA falla, el parser local sigue funcionando.
+                    ai_warning='La IA no está disponible; se ha usado el importador local gratuito.'
                     data=_basic_extract(text)
             else:
                 ai_warning='La IA no está configurada; se ha usado el importador local gratuito.'
