@@ -43,7 +43,7 @@ function ensureBack(){
 }
 function mobileHome(){
  if(window.innerWidth>650)return;
- document.body.classList.remove('cvgo-mobile-work');
+ document.body.classList.remove('cvgo-mobile-work','cvgo-mobile-preview');
  var panel=q('.panel'),preview=q('.previewbox'),top=q('.dash-top'),quick=q('.dash-quick'),tip=q('.dash-tip'),side=q('.dash-sidebar'),back=ensureBack();
  if(panel)panel.style.display='none';
  if(preview)preview.style.display='none';
@@ -57,14 +57,16 @@ function mobileHome(){
 }
 function mobileWork(name){
  if(window.innerWidth>650)return;
+ var showPreview=name==='cv';
  document.body.classList.add('cvgo-mobile-work');
+ document.body.classList.toggle('cvgo-mobile-preview',showPreview);
  var panel=q('.panel'),preview=q('.previewbox'),top=q('.dash-top'),quick=q('.dash-quick'),tip=q('.dash-tip'),side=q('.dash-sidebar'),back=ensureBack();
  if(top)top.style.display='none';
  if(quick)quick.style.display='none';
  if(tip)tip.style.display='none';
  if(side)side.style.display='none';
  if(panel){panel.style.display='block';panel.style.width='100%';}
- if(preview){var show=name==='cv';preview.style.display=show?'block':'none';preview.style.width='100%';}
+ if(preview){preview.style.display=showPreview?'block':'none';preview.style.width='100%';}
  if(back)back.style.display='block';
  openTab(name);
  setTimeout(function(){if(back)back.scrollIntoView({behavior:'smooth',block:'start'})},50);
@@ -99,7 +101,7 @@ function build(){
 function boot(){fixHeader();if(build())return;if(!built)setTimeout(boot,250)}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 window.addEventListener('load',boot);
-window.addEventListener('resize',function(){if(window.innerWidth>650){document.body.classList.remove('cvgo-mobile-work');var b=q('#cvgoMobileBack');if(b)b.style.display='none';var p=q('.panel'),v=q('.previewbox'),s=q('.dash-sidebar');if(p)p.style.display='';if(v)v.style.display='';if(s)s.style.display='';}else if(built&&!document.body.classList.contains('cvgo-mobile-work'))mobileHome();fitPreview()});
+window.addEventListener('resize',function(){if(window.innerWidth>650){document.body.classList.remove('cvgo-mobile-work','cvgo-mobile-preview');var b=q('#cvgoMobileBack');if(b)b.style.display='none';var p=q('.panel'),v=q('.previewbox'),s=q('.dash-sidebar');if(p)p.style.display='';if(v)v.style.display='';if(s)s.style.display='';}else if(built&&!document.body.classList.contains('cvgo-mobile-work'))mobileHome();fitPreview()});
 var observer=new MutationObserver(function(){fixHeader();if(!built)boot();fitPreview()});
 if(document.documentElement)observer.observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class']});
 })();
