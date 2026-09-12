@@ -36,11 +36,11 @@ def db_execute(sql, params=None):
 
 def db_fetchone(sql, params=None):
     with engine.connect() as c:
-        row = c.execute(text(sql), params or {}).mappings().first()
+        row = c.execute(text(sql, params or {})).mappings().first()
         return dict(row) if row else None
 
 def db_fetchall(sql, params=None):
-    with engine.connect() as c: return [dict(r) for r in c.execute(text(sql), params or {}).mappings().all()]
+    with engine.connect() as c: return [dict(r) for r in c.execute(text(sql, params or {})).mappings().all()]
 
 def init_db():
     if DB_BACKEND == 'postgresql':
@@ -82,7 +82,7 @@ def save_paid(s):
 @app.get('/')
 def home():
     html=open('index.html',encoding='utf-8').read()
-    html=html.replace('</body>','<script src="/ai.js?v=4"></script><script src="/cvpersist.js?v=4"></script><script src="/profix.js?v=3"></script><script src="/cvimport.js?v=4"></script><link id="cvgoDashboardCss" rel="stylesheet" href="/dashboard.css?v=4"><script id="cvgoDashboardScript" src="/dashboard.js?v=11"></script></body>')
+    html=html.replace('</body>','<script src="/ai.js?v=4"></script><script src="/cvpersist.js?v=4"></script><script src="/profix.js?v=3"></script><link id="cvgoDashboardCss" rel="stylesheet" href="/dashboard.css?v=5"><script id="cvgoDashboardScript" src="/dashboard.js?v=13"></script></body>')
     return Response(html,mimetype='text/html')
 @app.get('/ai.js')
 def ai_js(): return send_from_directory('.','ai.js',mimetype='application/javascript')
