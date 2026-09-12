@@ -97,7 +97,10 @@ if _original_home:
     def _home_with_cv_import(*args,**kwargs):
         response=_original_home(*args,**kwargs);body=response.get_data(as_text=True)
         if '/cvimport.js' not in body:
-            body=body.replace('</body>','<script src="/cvimport.js?v=1"></script></body>');response.set_data(body);response.headers.pop('Content-Length',None)
+            body=body.replace('</body>','<script src="/cvimport.js?v=1"></script></body>')
+        if '/import_ui.js' not in body:
+            body=body.replace('</body>','<script src="/import_ui.js?v=1"></script></body>')
+        response.set_data(body);response.headers.pop('Content-Length',None)
         return response
     application.view_functions['home']=_home_with_cv_import
 
@@ -105,3 +108,8 @@ if _original_home:
 def cvimport_js():
     from flask import send_from_directory
     return send_from_directory('.','cvimport.js',mimetype='application/javascript')
+
+@application.get('/import_ui.js')
+def import_ui_js():
+    from flask import send_from_directory
+    return send_from_directory('.','import_ui.js',mimetype='application/javascript')
