@@ -17,6 +17,7 @@ function errorText(e,status){
  if(map[code])return map[code];
  if(code==='AI_REQUEST_FAILED')return 'La IA no ha podido procesar el CV.'+(detail?' Detalle: '+detail:'');
  if(status===413)return 'El PDF pesa demasiado (máximo 8 MB).';
+ if(status)return 'Error del servidor ('+status+').'+(detail?' Detalle: '+detail:'');
  return 'No hemos podido importar el CV.'+(detail?' Detalle: '+detail:'');
 }
 function addUI(){
@@ -25,7 +26,7 @@ function addUI(){
  styles();var card=document.createElement('div');card.id='cvgoImportCard';card.className='cvgoImportCard';card.innerHTML='<div><b>📄 Importa tu CV automáticamente</b><p>Sube tu CV en PDF y CVProfit extraerá tus datos para rellenar el formulario.</p><div id="cvgoImportMsg" class="cvgoImportMsg"></div></div><button type="button" id="cvgoImportLaunch">Importar mi CV</button><input id="cvgoImportFile" type="file" accept="application/pdf,.pdf" hidden>';
  var tabs=tab.parentElement.querySelector('.tabs');if(tabs&&tabs.nextElementSibling===tab)tabs.insertAdjacentElement('afterend',card);else tab.insertBefore(card,tab.firstChild);
  var btn=q('cvgoImportLaunch'),file=q('cvgoImportFile'),msg=q('cvgoImportMsg');
- btn.onclick=function(){file.click()};file.onchange=async function(){var f=file.files&&file.files[0];if(!f)return;btn.disabled=true;msg.className='cvgoImportMsg';msg.textContent='⏳ Analizando tu CV...';var fd=new FormData();fd.append('file',f);try{var r=await fetch('/api/cv-import',{method:'POST',body:fd,credentials:'same-origin'}),j={};try{j=await r.json()}catch(_){j={error:'SERVER_RESPONSE_INVALID',detail:'El servidor no devolvió JSON válido.'}}if(!r.ok)throw Object.assign(j,{status:r.status});confirmImport(j.data,j.pages,msg)}catch(e){msg.className='cvgoImportMsg err';msg.textContent='⚠ '+errorText(e,e&&e.status);console.error('CVGO import error',e)}finally{btn.disabled=false;file.value=''}};
+ btn.onclick=function(){file.click()};file.onchange=async function(){var f=file.files&&file.files[0];if(!f)return;btn.disabled=true;msg.className='cvgoImportMsg';msg.textContent='⏳ Analizando tu CV...';var fd=new FormData();fd.append('file',f);try{var r=await fetch('/api/cv-import',{method:'POST',body:fd,credentials:'same-origin'}),j={};var rawText='';try{rawText=await r.text()}catch(_){rawText=''}try{j=rawText?JSON.parse(rawText):{}}catch(_){j={error:'SERVER_RESPONSE_INVALID',detail:(rawText||'El servidor no devolvió contenido.') .slice(0,500)}}if(!r.ok)throw Object.assign(j,{status:r.status});if(!j||j.ok!==true||!j.data)throw Object.assign(j||{},{error:'SERVER_RESPONSE_INVALID',status:r.status,detail:j&&j.detail?j.detail:'La respuesta no contiene los datos del CV.'});confirmImport(j.data,j.pages,msg)}catch(e){msg.className='cvgoImportMsg err';msg.textContent='⚠ '+errorText(e,e&&e.status);console.error('CVGO import error',e)}finally{btn.disabled=false;file.value=''}};
  return true
 }
 function init(){styles();addUI()}
