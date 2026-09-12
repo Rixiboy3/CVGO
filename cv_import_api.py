@@ -36,11 +36,65 @@ def _basic_extract(text):
     s=str(text or '')
     lines=[re.sub(r'\s+',' ',x).strip() for x in s.splitlines() if x.strip()]
     joined='\n'.join(lines)
-    m=re.search(r'[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}',joined,re.I); email=m.group(0) if m else ''
-    m=re.search(r'(?<!\d)(?:\+34[\s.-]?)?[6789]\d{2}[\s.-]?\d{3}[\s.-]?\d{3}(?!\d)',joined); phone=m.group(0) if m else ''
-    m=re.search(r'https?://(?:www\.)?linkedin\.com/[^\s)]+',joined,re.I); linkedin=m.group(0) if m else ''
-    name=lines[0] if lines and '@' not in lines[0] and len(lines[0])<80 else ''
-    return {'name':name,'role':'','email':email,'phone':phone,'city':'','linkedin':linkedin,'summary':'','skills':'','experience':[],'education':[]}
+    low=[x.lower() for x in lines]
+    headings={'perfil','perfil profesional','resumen','experiencia','experiencia profesional','experiencia laboral','formación','formacion','educación','educacion','estudios','habilidades','skills','competencias','aptitudes','idiomas','contacto','sobre mí','sobre mi'}
+    out={'name':'','role':'','email':'','phone':'','city':'','linkedin':'','summary':'','skills':'','experience':[],'education':[]}
+    m=re.search(r'[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}',joined,re.I)
+    if m: out['email']=m.group(0)
+    m=re.search(r'(?<!\d)(?:\+34[\s.-]?)?[6789]\d{2}[\s.-]?\d{3}[\s.-]?\d{3}(?!\d)',joined)
+    if m: out['phone']=m.group(0)
+    m=re.search(r'https?://(?:www\.)?linkedin\.com/[^\s)]+',joined,re.I)
+    if m: out['linkedin']=m.group(0).rstrip('.,;')
+    for i,line in enumerate(lines[:20]):
+        if line.lower() in headings or '@' in line or 'linkedin' in line.lower(): continue
+        words=line.split()
+        if 2<=len(words)<=5 and len(line)<=70 and not re.search(r'\d{3}',line) and sum(w[:1].isupper() for w in words)>=2:
+            out['name']=line; break
+    if out['name']:
+        idx=lines.index(out['name'])
+        for line in lines[idx+1:idx+7]:
+            if line.lower() not in headings and '@' not in line and 'linkedin' not in line.lower() and len(line)<=120:
+                out['role']=line; break
+    if not out['role']:
+        role_words=r'(?:director|gerente|comercial|ventas|marketing|ingeniero|ingeniera|técnico|tecnico|consultor|consultora|diseñador|desarrollador|administrativo|responsable|manager|sales|developer|engineer)'
+        for line in lines[:30]:
+            if re.search(role_words,line,re.I) and len(line)<=120: out['role']=line; break
+    for c in ['Sevilla','Madrid','Barcelona','Valencia','Málaga','Malaga','Alicante','Bilbao','Córdoba','Cordoba','Granada','Zaragoza','Murcia','Cádiz','Cadiz','Huelva','Jaén','Jaen']:
+        if re.search(r'\b'+re.escape(c)+r'\b',joined,re.I): out['city']=c; break
+
+    def section(names):
+        starts=[]
+        for i,l in enumerate(low):
+            norm=re.sub(r'[^a-záéíóúüñ ]','',l).strip()
+            if norm in names: starts.append(i)
+        if not starts:return []
+        i=starts[0]+1;end=len(lines)
+        for j in range(i,len(lines)):
+            norm=re.sub(r'[^a-záéíóúüñ ]','',low[j]).strip()
+            if norm in headings and j>i: end=j;break
+        return lines[i:end]
+
+    x=section({'perfil','perfil profesional','resumen','sobre mí','sobre mi'})
+    if x: out['summary']=' '.join(x[:12])
+    x=section({'habilidades','skills','competencias','aptitudes'})
+    if x: out['skills']='; '.join(x[:20])
+    x=section({'formación','formacion','educación','educacion','estudios'})
+    if x:
+        useful=[v for v in x[:12] if not re.fullmatch(r'\d{4}(?:\s*[-/]\s*\d{4})?',v)]
+        if useful: out['education']=[{'title':useful[0],'school':useful[1] if len(useful)>1 else '','year':''}]
+    x=section({'experiencia','experiencia profesional','experiencia laboral','experience','employment'})
+    if x:
+        cur=None
+        for line in x:
+            bullet=line.startswith(('-', '•', '·', '*'))
+            if not bullet and (cur is None or len(line)<=100):
+                if cur and any(cur.values()): out['experience'].append(cur)
+                cur={'position':line,'company':'','from':'','to':'','description':''}
+            elif cur:
+                v=line.lstrip('-•·* ').strip()
+                if v: cur['description']=(cur['description']+' '+v).strip()
+        if cur and any(cur.values()): out['experience'].append(cur)
+    return out
 
 
 def register_cv_import(app):
@@ -70,8 +124,6 @@ def register_cv_import(app):
             if len(text)<40:return jsonify(ok=False,error='PDF_NO_TEXT'),422
             text=text[:30000]
             key=os.getenv('OPENAI_API_KEY','').strip()
-            if not key:
-                return jsonify(ok=True,data=_basic_extract(text),pages=len(pages),model='local-fallback',warning='AI_NOT_CONFIGURED')
             model=os.getenv('OPENAI_MODEL','gpt-5-mini').strip() or 'gpt-5-mini'
             schema={'name':'','role':'','email':'','phone':'','city':'','linkedin':'','summary':'','skills':'','experience':[{'position':'','company':'','from':'','to':'','description':''}],'education':[{'title':'','school':'','year':''}]}
             prompt=f'''Extrae la información REAL de este CV para rellenar un formulario de CV.
@@ -83,7 +135,18 @@ Devuelve SOLO JSON válido con esta estructura exacta:
 
 CV EXTRAÍDO DEL PDF:
 {text}'''
-            stage='ai';data,used_model=_ai_extract(prompt,model)
+            data=None;used_model='local-fallback';ai_warning=''
+            if key:
+                stage='ai'
+                try:
+                    data,used_model=_ai_extract(prompt,model)
+                except Exception as e:
+                    # OpenAI 429/quota errors must not break the importer. Fall back to local parsing.
+                    ai_warning='La IA no tiene créditos disponibles; se ha usado el importador local gratuito.'
+                    data=_basic_extract(text)
+            else:
+                ai_warning='La IA no está configurada; se ha usado el importador local gratuito.'
+                data=_basic_extract(text)
             stage='clean';clean=lambda v:str(v or '').strip();out={k:clean(data.get(k)) for k in ('name','role','email','phone','city','linkedin','summary','skills')};out['experience']=[];out['education']=[]
             for item in data.get('experience') or []:
                 if isinstance(item,dict):
@@ -93,7 +156,9 @@ CV EXTRAÍDO DEL PDF:
                 if isinstance(item,dict):
                     x={k:clean(item.get(k)) for k in ('title','school','year')}
                     if any(x.values()):out['education'].append(x)
-            return jsonify(ok=True,data=out,pages=len(pages),model=used_model)
+            payload={'ok':True,'data':out,'pages':len(pages),'model':used_model}
+            if ai_warning: payload['warning']=ai_warning
+            return jsonify(payload)
         except Exception as e:
             return jsonify(ok=False,error='IMPORT_SERVER_ERROR',stage=stage,detail=f'{type(e).__name__}: {str(e)[:600]}'),500
 
