@@ -54,5 +54,54 @@ body.cvgo-dashboard .dash-quick button:hover{transform:translateY(-2px);box-shad
 body.cvgo-dashboard .dash-tip{grid-column:1/-1;margin-top:-8px;padding:13px 16px;border-radius:13px;background:linear-gradient(90deg,#f4f0ff,#fff7fd);border:1px solid #e8dcff;color:#57427d;font-size:12px}
 body.cvgo-dashboard .previewbox:after{content:"Tu CV se actualiza en tiempo real";display:block;margin:15px auto 0;padding:9px 12px;text-align:center;border-radius:9px;background:#f3f7ff;color:#55709d;font-size:11px;font-weight:700}
 @media(max-width:1150px){body.cvgo-dashboard .app{grid-template-columns:minmax(0,1fr) minmax(360px,470px);padding-left:278px}body.cvgo-dashboard .dash-quick{grid-template-columns:repeat(2,1fr)}}
-@media(max-width:900px){body.cvgo-dashboard .app{display:block;padding:22px 16px 35px;margin-left:0}body.cvgo-dashboard .app:before{display:none}body.cvgo-dashboard .dash-sidebar{position:static;width:auto;background:#101a2c;display:block;padding:12px 14px}.dash-nav{display:flex!important;overflow:auto}.dash-nav button{min-width:max-content}.dash-pro,.dash-quote,.dash-brand{display:none}body.cvgo-dashboard .previewbox{position:static;height:auto;margin-top:18px}body.cvgo-dashboard .dash-top{margin-bottom:14px}body.cvgo-dashboard .dash-quick{grid-template-columns:1fr 1fr}}
+@media(max-width:900px){body.cvgo-dashboard .app{display:block;padding:22px 16px 35px;margin-left:0}body.cvgo-dashboard .app:before{display:none}body.cvgo-dashboard .dash-sidebar{position:static;width:auto;background:#101a2c;display:block;padding:12px 14px}.dash-nav{display:flex!important;overflow:auto}.dash-nav button{min-width:max-content}.dash-pro,.dash-quote,.dash-brand{display:none}body.cvgo-dashboard .previewbox{position:static;height:auto;margin-top:18px}body.cvgo-dashboard .dash-top{margin-bottom:14px}body.cvgo-dashboard .dash-quick{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:600px){body.cvgo-dashboard header{padding:0 16px}body.cvgo-dashboard header .logo{font-size:23px}body.cvgo-dashboard header span{display:none}body.cvgo-dashboard .dash-welcome h1{font-size:22px}body.cvgo-dashboard .dash-user{padding:6px}.dash-user div:not(.dash-avatar){display:none}body.cvgo-dashboard .dash-quick{grid-template-columns:1fr}body.cvgo-dashboard .panel{padding:17px}.grid{grid-template-columns:1fr}.previewbox{padding:14px!important;overflow-x:auto!important}.cv{min-width:620px!important;transform-origin:top left}}
+/* Mobile v2: application-style layout. Never force the desktop A4 width into the phone. */
+@media(max-width:650px){
+ html,body{width:100%;max-width:100%;overflow-x:hidden}
+ body.cvgo-dashboard{background:#f5f8fc!important}
+ body.cvgo-dashboard header{height:64px!important;min-height:64px!important;padding:0 14px!important;position:sticky!important;top:0!important;z-index:1000!important;gap:8px!important}
+ body.cvgo-dashboard header .logo{font-size:22px!important}
+ body.cvgo-dashboard #headerStatus{display:none!important}
+ body.cvgo-dashboard #cvgoLogoutBtn{font-size:12px!important;padding:9px 11px!important;margin-left:auto!important;white-space:nowrap!important}
+ body.cvgo-dashboard #cvgoProBtn,body.cvgo-dashboard #cvprofitManageBtn{display:none!important}
+ body.cvgo-dashboard .app{display:block!important;width:100%!important;max-width:none!important;margin:0!important;padding:0 14px 30px!important}
+ body.cvgo-dashboard .dash-sidebar{position:static!important;width:calc(100% + 28px)!important;margin:0 -14px!important;padding:10px 10px 8px!important;background:#101a2c!important;border-radius:0 0 16px 16px!important}
+ body.cvgo-dashboard .dash-brand{display:flex!important;padding:2px 8px 11px!important;margin:0 0 9px!important}
+ body.cvgo-dashboard .dash-nav{display:flex!important;gap:7px!important;overflow-x:auto!important;padding:0 2px 3px!important;scrollbar-width:none!important;-webkit-overflow-scrolling:touch!important}
+ body.cvgo-dashboard .dash-nav::-webkit-scrollbar{display:none}
+ body.cvgo-dashboard .dash-nav button{flex:0 0 auto!important;width:auto!important;min-width:102px!important;min-height:56px!important;padding:8px 10px!important;display:block!important;text-align:left!important;border-radius:10px!important}
+ body.cvgo-dashboard .dash-nav button i{display:block!important;width:auto!important;font-size:14px!important;margin-bottom:2px!important}
+ body.cvgo-dashboard .dash-nav button span{font-size:11px!important;white-space:nowrap!important}.dash-nav button small{font-size:9px!important;white-space:nowrap!important}
+ body.cvgo-dashboard .dash-pro,body.cvgo-dashboard .dash-quote{display:none!important}
+ body.cvgo-dashboard .dash-top{display:flex!important;margin:18px 0 12px!important}
+ body.cvgo-dashboard .dash-welcome h1{font-size:21px!important;line-height:1.18!important}.dash-welcome p{font-size:12px!important;line-height:1.45!important}
+ body.cvgo-dashboard .dash-user{display:none!important}
+ body.cvgo-dashboard .dash-quick{display:grid!important;grid-template-columns:1fr!important;gap:9px!important;margin:0!important}
+ body.cvgo-dashboard .dash-quick button{min-height:70px!important;padding:12px!important;border-radius:13px!important}
+ body.cvgo-dashboard .dash-quick b{font-size:13px!important}.dash-quick small{font-size:10px!important}
+ body.cvgo-dashboard .dash-tip{margin:10px 0 0!important;font-size:11px!important;line-height:1.4!important;padding:10px 12px!important}
+ body.cvgo-dashboard .panel,body.cvgo-dashboard .previewbox{display:none!important}
+ body.cvgo-dashboard #cvgoMobileBack{display:none!important;width:100%!important;margin:10px 0!important;padding:11px 13px!important;border:1px solid #dbe3ef!important;border-radius:11px!important;background:#fff!important;color:#172b4d!important;font-weight:800!important;text-align:left!important;box-shadow:0 5px 15px rgba(16,24,40,.06)!important}
+ body.cvgo-dashboard.cvgo-mobile-work #cvgoMobileBack{display:block!important}
+ body.cvgo-dashboard.cvgo-mobile-work .dash-sidebar{display:none!important}
+ body.cvgo-dashboard.cvgo-mobile-work .panel{display:block!important;width:100%!important;margin:0!important;padding:15px!important;border-radius:15px!important;box-shadow:0 6px 20px rgba(16,24,40,.06)!important;overflow:visible!important}
+ body.cvgo-dashboard.cvgo-mobile-work .previewbox{display:block!important;width:100%!important;margin:14px 0 0!important;padding:10px!important;position:static!important;height:auto!important;border-radius:15px!important;overflow:hidden!important}
+ body.cvgo-dashboard.cvgo-mobile-work #preview{display:block!important;width:100%!important;max-width:100%!important;overflow:hidden!important}
+ body.cvgo-dashboard.cvgo-mobile-work #preview .cv{display:block!important;width:100%!important;max-width:100%!important;min-width:0!important;height:auto!important;min-height:0!important;margin:0!important;padding:22px 18px!important;transform:none!important;zoom:1!important;box-shadow:0 2px 10px rgba(16,24,40,.10)!important}
+ body.cvgo-dashboard.cvgo-mobile-work #preview .cv.modern{display:grid!important;grid-template-columns:30% 70%!important;padding:0!important}
+ body.cvgo-dashboard.cvgo-mobile-work #preview .cv.modern .side{padding:20px 10px!important;min-width:0!important}
+ body.cvgo-dashboard.cvgo-mobile-work #preview .cv.modern .main{padding:20px 12px!important;min-width:0!important}
+ body.cvgo-dashboard.cvgo-mobile-work .tabs{position:sticky!important;top:64px!important;z-index:80!important;margin:0 0 14px!important}
+ body.cvgo-dashboard.cvgo-mobile-work .tab{font-size:11px!important;padding:9px 4px!important;white-space:nowrap!important}
+ body.cvgo-dashboard.cvgo-mobile-work .grid{grid-template-columns:1fr!important}
+ body.cvgo-dashboard.cvgo-mobile-work .field input,body.cvgo-dashboard.cvgo-mobile-work .field textarea{font-size:16px!important;width:100%!important}
+ body.cvgo-dashboard.cvgo-mobile-work .section{margin-bottom:20px!important}
+ body.cvgo-dashboard.cvgo-mobile-work .item{padding:11px!important}
+ body.cvgo-dashboard.cvgo-mobile-work .actions{display:grid!important;grid-template-columns:1fr!important}
+ body.cvgo-dashboard.cvgo-mobile-work .templateBtns{display:grid!important;grid-template-columns:1fr!important}
+ body.cvgo-dashboard.cvgo-mobile-work .cvgoImportCard{display:none!important}
+ body.cvgo-dashboard.cvgo-mobile-work .cv h1{font-size:24px!important;line-height:1.15!important;overflow-wrap:anywhere!important}
+ body.cvgo-dashboard.cvgo-mobile-work .cv .role{font-size:13px!important}
+ body.cvgo-dashboard.cvgo-mobile-work .cvsec p,body.cvgo-dashboard.cvgo-mobile-work .cvjob .desc,body.cvgo-dashboard.cvgo-mobile-work .cvjob .line{font-size:10px!important;overflow-wrap:anywhere!important}
+}
