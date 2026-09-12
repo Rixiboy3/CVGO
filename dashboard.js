@@ -27,6 +27,8 @@ function build(){
  fixHeader();
  if(!main||!app||main.classList.contains('hidden'))return false;
  document.body.classList.add('cvgo-dashboard');
+ var auth=q('#auth');if(auth){auth.classList.add('hidden');auth.style.setProperty('display','none','important')}
+ main.classList.remove('hidden');main.style.setProperty('display','block','important');
  if(!q('.dash-sidebar')){
   var side=document.createElement('aside');side.className='dash-sidebar';side.innerHTML='<div class="dash-brand"><div class="dash-brand-icon">CV</div><div><b>CVProfit</b><small>CV, más oportunidades</small></div></div><nav class="dash-nav"><button class="active" data-go="inicio"><i>⌂</i><span>Inicio<small>Panel principal</small></span></button><button data-go="cv"><i>▣</i><span>Mi CV<small>Crea y edita tu currículum</small></span></button><button data-go="carta"><i>✦</i><span>Carta de presentación<small>Genera cartas personalizadas</small></span></button><button data-go="entrevista"><i>◉</i><span>Simulador de entrevista<small>Prepárate con IA</small></span></button><button data-go="oferta"><i>⌕</i><span>Analizar oferta<small>Adapta tu CV al puesto</small></span></button></nav><div class="dash-pro"><div class="pro-title">✨ Saca todo el partido a CVProfit</div><p>Tu CV, cartas, entrevistas y análisis ATS en un solo lugar.</p><button data-go="cv">Continuar con mi CV →</button></div><div class="dash-quote">“Un mejor CV te acerca a un mejor futuro”<br><br>— CVProfit</div>';
   main.insertBefore(side,app);
