@@ -82,7 +82,7 @@ def save_paid(s):
 @app.get('/')
 def home():
     html=open('index.html',encoding='utf-8').read()
-    html=html.replace('</body>','<script src="/ai.js?v=4"></script><script src="/cvpersist.js?v=4"></script><script src="/profix.js?v=3"></script><script src="/cvimport.js?v=4"></script></body>')
+    html=html.replace('</body>','<script src="/ai.js?v=4"></script><script src="/cvpersist.js?v=4"></script><script src="/profix.js?v=3"></script><script src="/cvimport.js?v=4"></script><link id="cvgoDashboardCss" rel="stylesheet" href="/dashboard.css?v=3"><script id="cvgoDashboardScript" src="/dashboard.js?v=9"></script></body>')
     return Response(html,mimetype='text/html')
 @app.get('/ai.js')
 def ai_js(): return send_from_directory('.','ai.js',mimetype='application/javascript')
