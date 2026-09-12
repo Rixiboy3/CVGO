@@ -46,10 +46,31 @@ function ensureBack(){
  if(!back){back=document.createElement('button');back.id='cvgoMobileBack';back.type='button';back.textContent='← Volver al inicio';back.addEventListener('click',mobileHome);main.insertBefore(back,main.firstElementChild)}
  return back;
 }
+function ensureMobileEditorUI(){
+ var main=q('#main');if(!main)return null;
+ var bar=q('#cvgoMobileEditorBar');
+ if(!bar){
+  bar=document.createElement('div');bar.id='cvgoMobileEditorBar';bar.innerHTML='<div class="mbar-title"><span id="cvgoMobileEditorIcon">📄</span><div><b id="cvgoMobileEditorTitle">Mi CV</b><small id="cvgoMobileEditorSub">Edita tu información</small></div></div><div class="mbar-actions"><button type="button" id="cvgoMobileSave">Guardar</button><button type="button" id="cvgoMobilePreviewToggle">Vista previa</button></div>';
+  main.insertBefore(bar,main.firstElementChild);
+  bar.querySelector('#cvgoMobileSave').addEventListener('click',async function(){var b=this;b.disabled=true;b.textContent='Guardando…';try{if(typeof window.cvgoServerSave==='function')await window.cvgoServerSave()}finally{b.disabled=false;b.textContent='Guardar'}});
+  bar.querySelector('#cvgoMobilePreviewToggle').addEventListener('click',function(){document.body.classList.toggle('cvgo-mobile-preview');var on=document.body.classList.contains('cvgo-mobile-preview');this.textContent=on?'Ocultar vista':'Vista previa';var p=q('.previewbox');if(p)p.style.display=on?'block':'none';if(on)setTimeout(fitPreview,50)});
+ }
+ if(!q('#cvgoMobileEditorStyle')){
+  var style=document.createElement('style');style.id='cvgoMobileEditorStyle';style.textContent='@media(max-width:650px){#cvgoMobileEditorBar{display:none;align-items:center;justify-content:space-between;gap:10px;padding:11px 12px;margin:10px 0 8px;background:#fff;border:1px solid #e2e8f0;border-radius:14px;box-shadow:0 5px 18px rgba(16,24,40,.06)}body.cvgo-dashboard.cvgo-mobile-work #cvgoMobileEditorBar{display:flex}.mbar-title{display:flex;align-items:center;gap:9px;min-width:0}.mbar-title>span{width:34px;height:34px;border-radius:10px;background:#eaf2ff;display:grid;place-items:center;flex:0 0 auto}.mbar-title b{display:block;font-size:13px;color:#172b4d}.mbar-title small{display:block;font-size:10px;color:#667085;margin-top:2px}.mbar-actions{display:flex;gap:6px;flex:0 0 auto}.mbar-actions button{border:1px solid #d7dfeb;background:#fff;color:#172b4d;border-radius:9px;padding:8px 9px;font-size:11px;font-weight:800}.mbar-actions button:first-child{background:#2563eb;border-color:#2563eb;color:#fff}.mbar-actions button:disabled{opacity:.6}body.cvgo-dashboard.cvgo-mobile-work .tabs{display:none!important}body.cvgo-dashboard.cvgo-mobile-work .section{margin-bottom:22px}body.cvgo-dashboard.cvgo-mobile-work .section h2{font-size:16px!important;margin-bottom:11px!important}body.cvgo-dashboard.cvgo-mobile-work .field{margin-bottom:10px}body.cvgo-dashboard.cvgo-mobile-work .field input,body.cvgo-dashboard.cvgo-mobile-work .field textarea{font-size:16px!important;min-height:44px!important;padding:11px 12px!important}body.cvgo-dashboard.cvgo-mobile-work .field textarea{min-height:105px!important}body.cvgo-dashboard.cvgo-mobile-work .item{padding:12px!important;margin-bottom:9px!important}body.cvgo-dashboard.cvgo-mobile-work .grid{grid-template-columns:1fr!important;gap:0!important}body.cvgo-dashboard.cvgo-mobile-work .actions{display:grid!important;grid-template-columns:1fr!important;gap:8px!important;margin-top:18px!important}body.cvgo-dashboard.cvgo-mobile-work .actions button{width:100%!important;padding:12px!important}body.cvgo-dashboard.cvgo-mobile-work .previewbox{overflow:hidden!important}body.cvgo-dashboard.cvgo-mobile-work #preview .cv{width:100%!important;min-width:0!important;max-width:100%!important;box-sizing:border-box!important;transform:none!important;zoom:1!important}.mbar-actions button:last-child{background:#f5f8ff}}';document.head.appendChild(style);
+ }
+ return bar;
+}
+function setMobileEditorState(name){
+ var bar=ensureMobileEditorUI();if(!bar)return;
+ var title=q('#cvgoMobileEditorTitle'),sub=q('#cvgoMobileEditorSub'),icon=q('#cvgoMobileEditorIcon'),toggle=q('#cvgoMobilePreviewToggle');
+ var map={cv:['Mi CV','Edita tu currículum','📄'],carta:['Carta de presentación','Crea una carta adaptada','✉️'],oferta:['Analizar oferta','Comprueba la compatibilidad','🎯'],entrevista:['Simulador de entrevista','Prepárate antes de la entrevista','🎙️']};
+ var m=map[name]||map.cv;if(title)title.textContent=m[0];if(sub)sub.textContent=m[1];if(icon)icon.textContent=m[2];
+ document.body.classList.remove('cvgo-mobile-preview');if(toggle){toggle.style.display=name==='cv'?'block':'none';toggle.textContent='Vista previa'}
+}
 function mobileHome(){
  if(window.innerWidth>650)return;
  document.body.classList.remove('cvgo-mobile-work','cvgo-mobile-preview');
- var panel=q('.panel'),preview=q('.previewbox'),top=q('.dash-top'),quick=q('.dash-quick'),tip=q('.dash-tip'),side=q('.dash-sidebar'),back=ensureBack();
+ var panel=q('.panel'),preview=q('.previewbox'),top=q('.dash-top'),quick=q('.dash-quick'),tip=q('.dash-tip'),side=q('.dash-sidebar'),back=ensureBack(),bar=ensureMobileEditorUI();
  if(panel)panel.style.display='none';
  if(preview)preview.style.display='none';
  if(top)top.style.display='';
@@ -57,6 +78,7 @@ function mobileHome(){
  if(tip)tip.style.display='';
  if(side)side.style.display='none';
  if(back)back.style.display='none';
+ if(bar)bar.style.display='none';
  setTabDirect('cv');
  document.querySelectorAll('.dash-nav button').forEach(function(n){n.classList.toggle('active',n.dataset.go==='inicio')});
  window.scrollTo({top:0,behavior:'smooth'});
@@ -65,7 +87,7 @@ function mobileWork(name){
  if(window.innerWidth>650)return;
  var showPreview=name==='cv';
  document.body.classList.add('cvgo-mobile-work');
- document.body.classList.toggle('cvgo-mobile-preview',showPreview);
+ document.body.classList.remove('cvgo-mobile-preview');
  var panel=q('.panel'),preview=q('.previewbox'),top=q('.dash-top'),quick=q('.dash-quick'),tip=q('.dash-tip'),side=q('.dash-sidebar'),back=ensureBack();
  if(top)top.style.display='none';
  if(quick)quick.style.display='none';
@@ -74,7 +96,9 @@ function mobileWork(name){
  if(panel){panel.style.display='block';panel.style.width='100%';}
  if(preview){preview.style.display=showPreview?'block':'none';preview.style.width='100%';}
  if(back)back.style.display='block';
+ setMobileEditorState(name);
  openTab(name);
+ if(name==='cv'&&showPreview){var toggle=q('#cvgoMobilePreviewToggle');if(toggle)toggle.textContent='Ocultar vista';document.body.classList.add('cvgo-mobile-preview');}
 }
 function bind(){
  document.querySelectorAll('[data-go]').forEach(function(b){if(b.dataset.dashBound)return;b.dataset.dashBound='1';b.addEventListener('click',function(e){e.preventDefault();e.stopPropagation();var a=b.dataset.go;document.querySelectorAll('.dash-nav button').forEach(function(n){n.classList.toggle('active',n.dataset.go===a)});if(a==='inicio')mobileHome();else mobileWork(a)})});
@@ -98,15 +122,15 @@ function build(){
   app.insertBefore(quick,app.firstChild.nextSibling);
  }
  if(!q('.dash-tip')){var tip=document.createElement('div');tip.className='dash-tip';tip.innerHTML='💡 <b>Consejo:</b> completa primero tu experiencia y habilidades. Después utiliza la IA para adaptar tu CV a cada oferta.';app.insertBefore(tip,app.querySelector('.panel'))}
- ensureBack();bind();
+ ensureBack();ensureMobileEditorUI();bind();
  var hs=q('#headerStatus'),du=q('#dashUserEmail');if(hs&&du&&/@/.test(hs.textContent))du.textContent=hs.textContent.trim();
- if(window.innerWidth<=650)mobileHome();else{var p=q('.panel'),v=q('.previewbox'),s=q('.dash-sidebar');if(p)p.style.display='';if(v)v.style.display='';if(s)s.style.display='';}
+ if(window.innerWidth<=650)mobileHome();else{var p=q('.panel'),v=q('.previewbox'),s=q('.dash-sidebar'),b=q('#cvgoMobileEditorBar');if(p)p.style.display='';if(v)v.style.display='';if(s)s.style.display='';if(b)b.style.display='none';}
  fitPreview();built=true;return true;
 }
 function boot(){fixHeader();if(build())return;if(!built)setTimeout(boot,250)}
 if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',boot,{once:true});else boot();
 window.addEventListener('load',boot);
-window.addEventListener('resize',function(){if(window.innerWidth>650){document.body.classList.remove('cvgo-mobile-work','cvgo-mobile-preview');var b=q('#cvgoMobileBack');if(b)b.style.display='none';var p=q('.panel'),v=q('.previewbox'),s=q('.dash-sidebar');if(p)p.style.display='';if(v)v.style.display='';if(s)s.style.display='';}else if(built&&!document.body.classList.contains('cvgo-mobile-work'))mobileHome();fitPreview()});
+window.addEventListener('resize',function(){if(window.innerWidth>650){document.body.classList.remove('cvgo-mobile-work','cvgo-mobile-preview');var b=q('#cvgoMobileBack'),bar=q('#cvgoMobileEditorBar');if(b)b.style.display='none';if(bar)bar.style.display='none';var p=q('.panel'),v=q('.previewbox'),s=q('.dash-sidebar');if(p)p.style.display='';if(v)v.style.display='';if(s)s.style.display='';}else if(built&&!document.body.classList.contains('cvgo-mobile-work'))mobileHome();fitPreview()});
 var observer=new MutationObserver(function(){fixHeader();if(!built)boot();fitPreview()});
 if(document.documentElement)observer.observe(document.documentElement,{subtree:true,childList:true,attributes:true,attributeFilter:['class']});
 })();
