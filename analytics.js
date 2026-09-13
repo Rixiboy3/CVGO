@@ -2,7 +2,7 @@
   'use strict';
 
   const MEASUREMENT_ID = 'G-D56TP3LVL2';
-  const CONSENT_KEY = 'cvprofit_analytics_consent';
+  const CONSENT_KEY = 'cvprofit_analytics_consent_v2';
   let initialized = false;
 
   function loadGoogleTag(){
