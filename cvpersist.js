@@ -16,9 +16,9 @@
     if($('languagesSection'))return;
     const cv=$('cvTab');if(!cv)return;
     const skillsSection=[...cv.querySelectorAll('.section')].find(s=>/^5\.\s*Habilidades/i.test(s.querySelector('h2')?.textContent||''));
-    const designSection=[...cv.querySelectorAll('.section')].find(s=>/^6\.\s*Diseño/i.test(s.querySelector('h2')?.textContent||''));
+    const designSection=[...cv.querySelectorAll('.section')].find(s=>/^(?:6|7)\.\s*Diseño/i.test(s.querySelector('h2')?.textContent||''));
     const section=document.createElement('div');section.id='languagesSection';section.className='section';section.innerHTML='<h2>6. Idiomas</h2><div id="languages"></div><button type="button" class="smallbtn" id="addLanguageBtn">+ Añadir idioma</button>';
-    if(designSection)cv.insertBefore(section,designSection);else if(skillsSection)skillsSection.insertAdjacentElement('afterend',section);else cv.appendChild(section);
+    if(designSection){cv.insertBefore(section,designSection);const h=designSection.querySelector('h2');if(h)h.textContent='7. Diseño'}else if(skillsSection){skillsSection.insertAdjacentElement('afterend',section)}else cv.appendChild(section);
     $('addLanguageBtn').onclick=()=>addLanguage();
     if(!$('languages').children.length)addLanguage();
     const style=document.createElement('style');style.id='cvgoLanguagesStyle';style.textContent='#languagesSection .item{margin-bottom:10px}#languagesSection .grid{grid-template-columns:1fr 1fr}#cvLanguagesPreview{margin-top:20px}#cvLanguagesPreview .langline{font-size:11px;line-height:1.5;margin:3px 0}@media(max-width:600px){#languagesSection .grid{grid-template-columns:1fr}}';document.head.appendChild(style);
@@ -27,7 +27,7 @@
     const cv=$('preview')?.querySelector('.cv');if(!cv)return;
     let sec=cv.querySelector('#cvLanguagesPreview');const langs=readLanguages();
     if(!langs.length){if(sec)sec.remove();return}
-    if(!sec){sec=document.createElement('div');sec.id='cvLanguagesPreview';sec.className='cvsec';cv.appendChild(sec)}
+    const host=cv.classList.contains('modern')?(cv.querySelector('.main')||cv):cv;if(!sec){sec=document.createElement('div');sec.id='cvLanguagesPreview';sec.className='cvsec';host.appendChild(sec)}else if(sec.parentElement!==host){host.appendChild(sec)}
     sec.innerHTML='<h3>Idiomas</h3>'+langs.map(x=>`<div class="langline"><b>${esc(x.language)}</b>${x.level?' — '+esc(x.level):''}</div>`).join('');
   }
   function esc(s){return String(s||'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
