@@ -55,6 +55,11 @@
 
   function showBanner(){
     if(document.getElementById('cvgoAnalyticsConsent')) return;
+    const style = document.createElement('style');
+    style.id = 'cvgoAnalyticsConsentStyle';
+    style.textContent = '#cvgoAnalyticsConsent{position:fixed;left:18px;right:18px;bottom:18px;z-index:2147483000;font-family:Arial,sans-serif}.cvgo-consent-box{max-width:980px;margin:0 auto;background:#fff;border:1px solid #e5e7eb;border-radius:16px;box-shadow:0 12px 40px rgba(0,0,0,.16);padding:18px 20px;display:flex;align-items:center;justify-content:space-between;gap:20px}.cvgo-consent-box strong{display:block;font-size:16px;color:#111827;margin-bottom:5px}.cvgo-consent-box p{margin:0;color:#4b5563;font-size:13px;line-height:1.45}.cvgo-consent-actions{display:flex;gap:9px;flex-shrink:0}.cvgo-consent-actions button{border:1px solid #d1d5db;background:#fff;color:#374151;border-radius:9px;padding:10px 15px;font-weight:600;cursor:pointer}.cvgo-consent-actions button[data-consent="accept"]{background:#111827;border-color:#111827;color:#fff}@media(max-width:640px){.cvgo-consent-box{display:block;padding:16px}.cvgo-consent-actions{margin-top:13px}.cvgo-consent-actions button{flex:1}}';
+    document.head.appendChild(style);
+
     const banner = document.createElement('div');
     banner.id = 'cvgoAnalyticsConsent';
     banner.innerHTML = '<div class="cvgo-consent-box"><div><strong>Privacidad y cookies</strong><p>Usamos cookies de analítica para saber cómo se utiliza CVProfit y mejorar la web. Puedes aceptar o rechazar su uso.</p></div><div class="cvgo-consent-actions"><button type="button" data-consent="deny">Rechazar</button><button type="button" data-consent="accept">Aceptar</button></div></div>';
@@ -71,9 +76,14 @@
     try{return localStorage.getItem(CONSENT_KEY) === 'granted';}catch(e){return false;}
   }
 
+  function getConsent(){
+    try{return localStorage.getItem(CONSENT_KEY);}catch(e){return 'denied';}
+  }
+
   function initConsent(){
-    if(hasConsent()) loadGoogleTag();
-    else if(!localStorage.getItem(CONSENT_KEY)) showBanner();
+    const consent = getConsent();
+    if(consent === 'granted') loadGoogleTag();
+    else if(consent !== 'denied') showBanner();
   }
 
   function track(name, params){
