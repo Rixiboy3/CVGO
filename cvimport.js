@@ -198,4 +198,12 @@
   window.addEventListener('load', init);
   setTimeout(init, 300);
   setTimeout(init, 1800);
+
+  if(!document.getElementById('cvgoAnalyticsScript')){
+    const analytics=document.createElement('script');
+    analytics.id='cvgoAnalyticsScript';
+    analytics.src='/analytics.js?v=1';
+    analytics.defer=true;
+    document.head.appendChild(analytics);
+  }
 })();
