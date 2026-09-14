@@ -1,103 +1,128 @@
-# CVProfit launch hardening layer.
-# Loaded from sitecustomize so it can improve the deployed app without
-# rewriting the large generated index.html in place.
-import app as app_module
+import re
+from flask import request
 
-# Commercial launch decision: give new users a full 7-day trial.
-app_module.TRIAL_DAYS = 7
-app = app_module.app
+try:
+    import app as app_module
+except Exception:
+    app_module = None
 
-_BRAND_JS = r'''<script id="cvprofitLaunchFix">
+# CVProfit commercial/runtime hardening.
+if app_module is not None:
+    app_module.TRIAL_DAYS = 7
+
+
+def _inject_runtime_hardening(html):
+    if not isinstance(html, str):
+        return html
+
+    # Keep the public brand and commercial offer consistent even if an older
+    # template/string is still present in the base application.
+    html = html.replace("CVGO", "CVProfit")
+    html = html.replace("3 DÍAS", "7 DÍAS")
+    html = html.replace("3 días", "7 días")
+    html = html.replace("3 dias", "7 dias")
+
+    # Keep the legal navigation pointing to the actual routes.
+    html = html.replace("/legal#condiciones", "/legal/condiciones")
+    html = html.replace("/legal#privacidad", "/legal/privacidad")
+
+    script = r'''<script id="cvprofit-runtime-fix">
 (function(){
   'use strict';
-  function textFix(s){
-    return String(s||'')
-      .replace(/CVGO/g,'CVProfit')
-      .replace(/CVgo/g,'CVProfit')
-      .replace(/3 DÍAS/g,'7 DÍAS')
-      .replace(/3 días/g,'7 días');
-  }
-  function walk(node){
-    if(!node)return;
-    if(node.nodeType===Node.TEXT_NODE){
-      if(node.nodeValue && (node.nodeValue.includes('CVGO') || node.nodeValue.includes('3 días') || node.nodeValue.includes('3 DÍAS'))){
-        node.nodeValue=textFix(node.nodeValue);
-      }
-      return;
-    }
-    if(node.nodeType!==Node.ELEMENT_NODE || node.tagName==='SCRIPT' || node.tagName==='STYLE')return;
-    for(const child of Array.from(node.childNodes))walk(child);
-    for(const attr of ['title','aria-label','placeholder']){
-      if(node.hasAttribute(attr)){
-        const v=node.getAttribute(attr); if(v)node.setAttribute(attr,textFix(v));
-      }
-    }
-  }
+
   function syncExperienceDates(){
-    const items=Array.from(document.querySelectorAll('#experience .item'));
-    if(!items.length)return;
-    const sections=Array.from(document.querySelectorAll('#preview .cvsec'));
-    const expSection=sections.find(function(s){
-      const h=s.querySelector('h3');
-      return h && /experiencia profesional/i.test(h.textContent||'');
-    });
-    if(!expSection)return;
-    const jobs=Array.from(expSection.querySelectorAll('.cvjob'));
-    items.forEach(function(item,i){
-      const job=jobs[i]; if(!job)return;
-      const from=(item.querySelector('.ef')?.value||'').trim();
-      const to=(item.querySelector('.et')?.value||'').trim();
-      const date=job.querySelector('.date');
-      if(!date)return;
-      const value=from && to ? from+' – '+to : (from||to);
-      if(value)date.textContent=value;
-    });
+    try{
+      document.querySelectorAll('.experience-item').forEach(function(item){
+        var from=item.querySelector('.ef');
+        var to=item.querySelector('.et');
+        var date=item.querySelector('.date');
+        if(date && (from || to)){
+          var a=from && from.value ? from.value.trim() : '';
+          var b=to && to.value ? to.value.trim() : '';
+          if(a || b) date.textContent=(a||'') + (a||b ? ' – ' : '') + (b||'');
+        }
+      });
+    }catch(e){}
   }
-  function hidePublicAuthForLoggedIn(){
-    fetch('/api/me',{cache:'no-store',credentials:'same-origin'}).then(function(r){return r.json()}).then(function(u){
-      if(!u || !u.logged_in)return;
-      const auth=document.getElementById('auth');
-      if(auth){
-        auth.classList.add('hidden');
-        auth.style.setProperty('display','none','important');
-        const marketing=auth.querySelector('.cvgo-marketing');
-        if(marketing)marketing.remove();
-        const card=auth.querySelector('.card');
-        if(card)card.remove();
-      }
-      const main=document.getElementById('main');
-      if(main){main.classList.remove('hidden');main.style.setProperty('display','block','important');}
-    }).catch(function(){});
+
+  function showDashboardForLoggedInUser(){
+    fetch('/api/me',{cache:'no-store',credentials:'same-origin'})
+      .then(function(r){ return r.ok ? r.json() : null; })
+      .then(function(u){
+        if(!u || !u.logged_in) return;
+
+        // The public landing/auth panel must NEVER remain visible for an
+        // authenticated user. Hide it and reveal the application immediately.
+        var auth=document.getElementById('auth');
+        if(auth){
+          auth.classList.add('hidden');
+          auth.style.setProperty('display','none','important');
+          auth.setAttribute('aria-hidden','true');
+          var marketing=auth.querySelector('.cvgo-marketing');
+          if(marketing) marketing.remove();
+          var card=auth.querySelector('.card');
+          if(card) card.remove();
+        }
+
+        var main=document.getElementById('main');
+        if(main){
+          main.classList.remove('hidden');
+          main.style.setProperty('display','block','important');
+          main.removeAttribute('aria-hidden');
+        }
+      })
+      .catch(function(){});
   }
-  function fix(){
-    walk(document.body);
-    if(document.title)document.title=textFix(document.title);
+
+  function apply(){
     syncExperienceDates();
-    hidePublicAuthForLoggedIn();
+    showDashboardForLoggedInUser();
   }
-  if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',fix,{once:true});
-  else fix();
-  window.addEventListener('load',fix);
-  window.addEventListener('beforeprint',syncExperienceDates);
-  const observer=new MutationObserver(function(mutations){
-    let relevant=false;
-    for(const m of mutations){if(m.addedNodes && m.addedNodes.length){relevant=true;break;}}
-    if(relevant)hidePublicAuthForLoggedIn();
+
+  if(document.readyState==='loading') document.addEventListener('DOMContentLoaded',apply);
+  else apply();
+  window.addEventListener('load',apply);
+  window.addEventListener('pageshow',apply);
+  document.addEventListener('input',syncExperienceDates);
+  document.addEventListener('change',syncExperienceDates);
+  document.addEventListener('beforeprint',syncExperienceDates);
+
+  // Login/register code may replace the DOM after the initial page load.
+  // Re-run only when the relevant auth/main nodes are added or changed.
+  var lastAuth=null,lastMain=null;
+  var observer=new MutationObserver(function(){
+    var auth=document.getElementById('auth');
+    var main=document.getElementById('main');
+    if(auth!==lastAuth || main!==lastMain){
+      lastAuth=auth; lastMain=main;
+      showDashboardForLoggedInUser();
+      syncExperienceDates();
+    }
   });
   observer.observe(document.documentElement,{childList:true,subtree:true});
 })();
 </script>'''
 
-@app.after_request
-def cvprofit_launch_hardening(response):
+    if 'id="cvprofit-runtime-fix"' not in html:
+        if '</body>' in html:
+            html = html.replace('</body>', script + '</body>', 1)
+        else:
+            html += script
+    return html
+
+
+if app_module is not None:
     try:
-        if 'text/html' in (response.content_type or ''):
-            html=response.get_data(as_text=True)
-            html=html.replace('CVGO','CVProfit').replace('CVgo','CVProfit')
-            html=html.replace('3 DÍAS','7 DÍAS').replace('3 días','7 días')
-            if 'cvprofitLaunchFix' not in html and '</body>' in html:
-                html=html.replace('</body>', _BRAND_JS+'</body>')
-            response.set_data(html)
+        @app_module.app.after_request
+        def cvprofit_launch_hardening(response):
+            content_type = (response.headers.get('Content-Type') or '').lower()
+            if 'text/html' in content_type:
+                try:
+                    body = response.get_data(as_text=True)
+                    body = _inject_runtime_hardening(body)
+                    response.set_data(body)
+                except Exception:
+                    pass
+            return response
     except Exception:
         pass
-    return response
