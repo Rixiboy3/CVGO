@@ -33,6 +33,37 @@ def _inject_runtime_hardening(html):
       });
     }catch(e){}
   }
+  function styleContinueButtons(){
+    try{
+      document.querySelectorAll('button').forEach(function(button){
+        var text=(button.textContent||'').trim();
+        if(!/^Continuar(?:\s|$)/i.test(text))return;
+        button.classList.add('cvprofit-modern-continue');
+        button.style.setProperty('appearance','none','important');
+        button.style.setProperty('-webkit-appearance','none','important');
+        button.style.setProperty('display','inline-flex','important');
+        button.style.setProperty('align-items','center','important');
+        button.style.setProperty('justify-content','center','important');
+        button.style.setProperty('gap','7px','important');
+        button.style.setProperty('min-height','42px','important');
+        button.style.setProperty('padding','10px 18px','important');
+        button.style.setProperty('border','1px solid #1d4ed8','important');
+        button.style.setProperty('border-radius','11px','important');
+        button.style.setProperty('background','linear-gradient(135deg,#2563eb,#1747c8)','important');
+        button.style.setProperty('color','#fff','important');
+        button.style.setProperty('font','800 14px/1.2 Inter,Arial,sans-serif','important');
+        button.style.setProperty('cursor','pointer','important');
+        button.style.setProperty('box-shadow','0 7px 18px rgba(37,99,235,.20)','important');
+        button.style.setProperty('transition','transform .18s ease,box-shadow .18s ease,filter .18s ease','important');
+        if(!button.dataset.cvprofitContinueBound){
+          button.dataset.cvprofitContinueBound='1';
+          button.addEventListener('mouseenter',function(){button.style.setProperty('transform','translateY(-1px)','important');button.style.setProperty('box-shadow','0 10px 22px rgba(37,99,235,.26)','important');button.style.setProperty('filter','brightness(1.03)','important')});
+          button.addEventListener('mouseleave',function(){button.style.setProperty('transform','translateY(0)','important');button.style.setProperty('box-shadow','0 7px 18px rgba(37,99,235,.20)','important');button.style.setProperty('filter','none','important')});
+          button.addEventListener('focus',function(){button.style.setProperty('outline','none','important');button.style.setProperty('box-shadow','0 0 0 4px rgba(37,99,235,.16),0 7px 18px rgba(37,99,235,.20)','important')});
+        }
+      });
+    }catch(e){}
+  }
   function forceAuthenticatedView(){
     fetch('/api/me',{cache:'no-store',credentials:'same-origin'}).then(function(r){return r.ok?r.json():null}).then(function(u){
       if(!u||!u.logged_in)return;
@@ -50,12 +81,13 @@ def _inject_runtime_hardening(html):
       }
     }).catch(function(){});
   }
-  function apply(){syncExperienceDates();forceAuthenticatedView();}
+  function apply(){syncExperienceDates();styleContinueButtons();forceAuthenticatedView();}
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',apply);else apply();
   window.addEventListener('load',apply); window.addEventListener('pageshow',apply);
   document.addEventListener('input',syncExperienceDates); document.addEventListener('change',syncExperienceDates); document.addEventListener('beforeprint',syncExperienceDates);
   setTimeout(forceAuthenticatedView,250); setTimeout(forceAuthenticatedView,1000); setTimeout(forceAuthenticatedView,2500);
-  new MutationObserver(function(){forceAuthenticatedView();syncExperienceDates()}).observe(document.documentElement,{childList:true,subtree:true});
+  setTimeout(styleContinueButtons,150); setTimeout(styleContinueButtons,500); setTimeout(styleContinueButtons,1200);
+  new MutationObserver(function(){forceAuthenticatedView();syncExperienceDates();styleContinueButtons()}).observe(document.documentElement,{childList:true,subtree:true});
 })();
 </script>'''
     if 'id="cvprofit-runtime-fix"' not in html:
