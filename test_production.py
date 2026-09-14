@@ -6,6 +6,7 @@ os.environ.setdefault("COOKIE_SECURE", "0")
 
 import app
 import productionfix  # noqa: F401 - applies launch hardening
+from werkzeug.security import generate_password_hash
 
 
 def test_public_health_is_minimal():
@@ -30,11 +31,17 @@ def test_security_headers_are_present():
 def test_account_deletion_removes_user_and_cv():
     client = app.app.test_client()
     email = "production-test@example.invalid"
-    r = client.post("/api/register", json={"email": email, "password": "test-password"})
-    assert r.status_code == 200
+    app.db_execute(
+        "INSERT INTO users(email,password_hash,trial_started_at) VALUES(:email,:password,:trial)",
+        {"email": email, "password": generate_password_hash("test-password"), "trial": app.now().isoformat()},
+    )
+    user = app.db_fetchone("SELECT * FROM users WHERE email=:email", {"email": email})
+    with client.session_transaction() as sess:
+        sess["user_id"] = user["id"]
     r = client.post("/api/cv", json={"name": "Test User"})
     assert r.status_code == 200
     r = client.post("/api/account/delete")
     assert r.status_code == 200
     assert r.get_json()["ok"] is True
     assert client.get("/api/me").get_json()["logged_in"] is False
+    assert app.db_fetchone("SELECT id FROM users WHERE email=:email", {"email": email}) is None
