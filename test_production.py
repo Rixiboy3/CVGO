@@ -45,3 +45,11 @@ def test_account_deletion_removes_user_and_cv():
     assert r.get_json()["ok"] is True
     assert client.get("/api/me").get_json()["logged_in"] is False
     assert app.db_fetchone("SELECT id FROM users WHERE email=:email", {"email": email}) is None
+
+
+def test_legal_pages_have_no_pending_identity_fields():
+    client = app.app.test_client()
+    for path in ("/legal/aviso-legal", "/legal/privacidad", "/legal/condiciones"):
+        response = client.get(path)
+        assert response.status_code == 200
+        assert "[PENDIENTE]" not in response.get_data(as_text=True)
