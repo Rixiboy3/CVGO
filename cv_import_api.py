@@ -15,241 +15,222 @@ def _clean_json_response(raw):
 
 def _ai_extract(prompt, configured_model):
     from openai import OpenAI
-    models=[]
-    for model in (configured_model,'gpt-5-mini','gpt-4o-mini'):
-        model=str(model or '').strip()
-        if model and model not in models: models.append(model)
-    errors=[]
+    models = []
+    for model in (configured_model, 'gpt-5-mini', 'gpt-4o-mini'):
+        model = str(model or '').strip()
+        if model and model not in models:
+            models.append(model)
+    errors = []
     for model in models:
         try:
-            client=OpenAI(api_key=os.getenv('OPENAI_API_KEY','').strip(),timeout=45.0,max_retries=1)
-            response=client.responses.create(model=model,input=prompt)
-            data=_clean_json_response(getattr(response,'output_text','') or '')
-            if not isinstance(data,dict): raise ValueError('La IA no devolvió un objeto JSON')
-            return data,model
-        except Exception as e:
-            errors.append(f'{model}: {str(e)[:220]}')
+            client = OpenAI(api_key=os.getenv('OPENAI_API_KEY', '').strip(), timeout=45.0, max_retries=1)
+            response = client.responses.create(model=model, input=prompt)
+            data = _clean_json_response(getattr(response, 'output_text', '') or '')
+            if not isinstance(data, dict):
+                raise ValueError('La IA no devolvió un objeto JSON')
+            return data, model
+        except Exception as exc:
+            errors.append(f'{model}: {str(exc)[:220]}')
     raise RuntimeError(' | '.join(errors)[:700])
 
 
 def _normalise_pdf_text(text):
-    fixed=[]
+    fixed = []
     for raw in str(text or '').splitlines():
-        line=raw.replace('\u00a0',' ').strip()
+        line = raw.replace('\u00a0', ' ').strip()
         if not line:
             fixed.append('')
             continue
-        if re.search(r'(?:[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]\s){3,}[A-Za-zÁÉÍÓÚÜÑáéíóúüñ]', line):
-            line=re.sub(r' {2,}', '\x00', line)
-            line=line.replace(' ','')
-            line=line.replace('\x00',' ')
-        line=re.sub(r'[ \t]+',' ',line).strip()
+        line = re.sub(r'[ \t]+', ' ', line).strip()
         fixed.append(line)
     return '\n'.join(fixed)
 
 
 def _extract_languages(text):
-    lines=[re.sub(r'\s+',' ',x).strip() for x in _normalise_pdf_text(text).splitlines() if x.strip()]
-    low=[x.lower() for x in lines]
-    start=-1
-    for i,v in enumerate(low):
-        if v in ('idiomas','languages','idioma'):
-            start=i;break
-    if start<0:return []
-    stop=len(lines)
-    headings={'acerca de mí','acerca de mi','contacto','educación','educacion','formación','formacion','experiencia profesional','experiencia','habilidades','skills','competencias','diseño','sobre mí','sobre mi'}
-    for j in range(start+1,len(lines)):
-        if low[j] in headings:
-            stop=j;break
-    out=[]
-    for line in lines[start+1:stop]:
-        v=line.strip('•-·* ').strip()
-        if not v:continue
-        m=re.match(r'^([^:–—-]{2,40})\s*[:–—-]\s*(.+)$',v)
-        if m:
-            language=m.group(1).strip();level=m.group(2).strip()
+    lines = [re.sub(r'\s+', ' ', x).strip() for x in _normalise_pdf_text(text).splitlines() if x.strip()]
+    low = [x.lower() for x in lines]
+    start = next((i for i, value in enumerate(low) if value in ('idiomas', 'languages', 'idioma')), -1)
+    if start < 0:
+        return []
+    headings = {'contacto', 'educación', 'educacion', 'formación', 'formacion', 'experiencia profesional', 'experiencia', 'habilidades', 'skills', 'competencias'}
+    stop = next((j for j in range(start + 1, len(lines)) if low[j] in headings), len(lines))
+    out = []
+    for line in lines[start + 1:stop]:
+        value = line.strip('•-·* ').strip()
+        if not value:
+            continue
+        match = re.match(r'^([^:–—-]{2,40})\s*[:–—-]\s*(.+)$', value)
+        if match:
+            language, level = match.group(1).strip(), match.group(2).strip()
         else:
-            parts=re.split(r'\s{2,}',v,1)
-            if len(parts)==2: language,level=parts[0].strip(),parts[1].strip()
-            else: language=v;level=''
-        if language and not re.search(r'@|\d{6,}',language):
-            out.append({'language':language,'level':level})
+            parts = re.split(r'\s{2,}', value, 1)
+            language, level = (parts[0].strip(), parts[1].strip()) if len(parts) == 2 else (value, '')
+        if language and not re.search(r'@|\d{6,}', language):
+            out.append({'language': language, 'level': level})
     return out
 
 
 def _basic_extract(text):
-    lines=[re.sub(r'\s+',' ',x).strip() for x in _normalise_pdf_text(text).splitlines() if x.strip()]
-    out={'name':'','role':'','email':'','phone':'','city':'','linkedin':'','summary':'','skills':'','experience':[],'education':[],'languages':[]}
-    if not lines:return out
-    joined='\n'.join(lines)
-    m=re.search(r'[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}',joined,re.I)
-    if m:out['email']=m.group(0)
-    m=re.search(r'(?<!\d)(?:\+34[\s.-]?)?[6789]\d{2}[\s.-]?\d{3}[\s.-]?\d{3}(?!\d)',joined)
-    if m:out['phone']=re.sub(r'[ .-]','',m.group(0))
-    m=re.search(r'https?://(?:www\.)?linkedin\.com/[^\s)]+',joined,re.I)
-    if m:out['linkedin']=m.group(0).rstrip('.,;')
-    if re.search(r'\bSevilla\b',joined,re.I):out['city']='Sevilla'
-    low=[x.lower() for x in lines]
-    def idx_exact(*names):
-        wanted={n.lower() for n in names}
-        for i,l in enumerate(low):
-            if re.sub(r'\s+',' ',l).strip() in wanted:return i
-        return -1
-    about=idx_exact('acerca de mí','acerca de mi')
-    edu=idx_exact('educación','educacion','formación','formacion')
-    exp=idx_exact('experiencia profesional','experiencia laboral','experiencia')
-    skills=idx_exact('habilidades','skills','competencias')
-    if exp>=0:
-        for line in lines[exp+1:exp+5]:
-            if line.upper()==line and len(line.split())>=2 and '@' not in line:
-                out['name']=line.title();break
-    if not out['name']:
-        for line in lines[:25]:
-            if '@' in line or re.search(r'\d',line):continue
-            words=line.split()
-            if 2<=len(words)<=5 and len(line)<=70 and sum(w[:1].isupper() for w in words)>=2:
-                out['name']=line;break
-    if about>=0:
-        pre=lines[:about]
-        if len(' '.join(pre))>80:out['summary']=' '.join(pre).strip()
-        else:
-            end=edu if edu>about else (exp if exp>about else len(lines))
-            out['summary']=' '.join(lines[about+1:end]).strip()
-    if edu>=0:
-        end=exp if exp>edu else len(lines);block=lines[edu+1:end];pairs=[]
-        for i,line in enumerate(block):
-            if line.lower() in ('bachillerato','fp superior'):
-                pairs.append({'title':line,'school':block[i+1] if i+1<len(block) else '','year':''})
-        known={x['title'].lower() for x in pairs}
-        if 'bachillerato' in known and 'fp superior' in known:pairs.sort(key=lambda x:0 if x['title'].lower()=='bachillerato' else 1)
-        out['education']=pairs
-    if exp>=0:
-        end=skills if skills>exp else len(lines);block=lines[exp+1:end]
-        if out['name'] and block and block[0].upper()==out['name'].upper():block=block[1:]
-        titles=['Camarero de sala','Profesional de Hosteleria','Limpieza de zonas de trabajo y cristales'];positions=[i for i,line in enumerate(block) if line.lower() in {t.lower() for t in titles}]
-        if positions:
-            pre=[x.strip('•-·* ').strip() for x in block[:positions[0]] if x.strip() and x.upper()!=out['name'].upper()]
-            for n,pos in enumerate(positions):
-                title=block[pos];next_pos=positions[n+1] if n+1<len(positions) else len(block);after=block[pos+1:next_pos]
-                if title.lower()=='camarero de sala':company='Restaurante TATEL Ibiza';from_date='Temporadas 23-24 y 25';to_date=''
-                elif title.lower()=='profesional de hosteleria':company='Mr. Pizza.';from_date='2012';to_date='Diciembre 2022'
-                else:company='Eco Gaviño S.L.';from_date='2008';to_date='2010'
-                desc=[]
-                for v in after:
-                    s=v.strip('•-·* ').strip()
-                    if not s or s.lower().startswith('logro o aprendizaje a destacar'):continue
-                    if re.search(r'(?:Restaurante TATEL Ibiza|Mr\. Pizza\.|Eco Gaviño S\.L\.)',s,re.I):continue
-                    desc.append(s)
-                if n==0 and pre:desc=pre+desc
-                out['experience'].append({'position':title,'company':company,'from':from_date,'to':to_date,'description':' '.join(desc).strip()})
-    if skills>=0:
-        idi=idx_exact('idiomas');end=idi if idi>skills else len(lines);vals=[]
-        for line in lines[skills+1:end]:
-            v=line.strip('•-·* ').strip()
-            if v and '@' not in v and not re.fullmatch(r'\d{6,}',v):vals.append(v)
-        out['skills']='; '.join(vals[:20])
-    out['languages']=_extract_languages(text)
+    lines = [re.sub(r'\s+', ' ', x).strip() for x in _normalise_pdf_text(text).splitlines() if x.strip()]
+    out = {'name': '', 'role': '', 'email': '', 'phone': '', 'city': '', 'linkedin': '', 'summary': '', 'skills': '', 'experience': [], 'education': [], 'languages': []}
+    if not lines:
+        return out
+    joined = '\n'.join(lines)
+    match = re.search(r'[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}', joined, re.I)
+    if match:
+        out['email'] = match.group(0)
+    match = re.search(r'(?<!\d)(?:\+34[\s.-]?)?[6789]\d{2}[\s.-]?\d{3}[\s.-]?\d{3}(?!\d)', joined)
+    if match:
+        out['phone'] = re.sub(r'[ .-]', '', match.group(0))
+    match = re.search(r'https?://(?:www\.)?linkedin\.com/[^\s)]+', joined, re.I)
+    if match:
+        out['linkedin'] = match.group(0).rstrip('.,;')
+    for line in lines[:20]:
+        if '@' in line or re.search(r'\d', line):
+            continue
+        words = line.split()
+        if 2 <= len(words) <= 5 and len(line) <= 70 and sum(w[:1].isupper() for w in words) >= 2:
+            out['name'] = line
+            break
+    low = [x.lower() for x in lines]
+    def section(*names):
+        wanted = {n.lower() for n in names}
+        return next((i for i, value in enumerate(low) if value in wanted), -1)
+    about = section('acerca de mí', 'acerca de mi', 'perfil', 'sobre mí', 'sobre mi', 'resumen')
+    experience = section('experiencia profesional', 'experiencia laboral', 'experiencia')
+    education = section('educación', 'educacion', 'formación', 'formacion')
+    skills = section('habilidades', 'skills', 'competencias')
+    if about >= 0:
+        end = min([x for x in (experience, education, skills, len(lines)) if x > about], default=len(lines))
+        out['summary'] = ' '.join(lines[about + 1:end]).strip()
+    if skills >= 0:
+        end = min([x for x in (section('idiomas', 'languages'), len(lines)) if x > skills], default=len(lines))
+        values = [x.strip('•-·* ').strip() for x in lines[skills + 1:end] if x.strip()]
+        out['skills'] = '; '.join(values[:20])
+    out['languages'] = _extract_languages(text)
+    if experience >= 0:
+        end = min([x for x in (education, skills, section('idiomas', 'languages'), len(lines)) if x > experience], default=len(lines))
+        block = lines[experience + 1:end]
+        current = None
+        for line in block:
+            if not line.strip():
+                continue
+            if current is None:
+                current = {'position': line, 'company': '', 'from': '', 'to': '', 'description': ''}
+                continue
+            if not current['company'] and len(line) <= 100:
+                current['company'] = line
+                continue
+            current['description'] = (current['description'] + ' ' + line).strip()
+            if len(current['description']) > 1200:
+                out['experience'].append(current)
+                current = None
+        if current and any(current.values()):
+            out['experience'].append(current)
+    if education >= 0:
+        end = min([x for x in (experience, skills, len(lines)) if x > education], default=len(lines))
+        block = lines[education + 1:end]
+        for i in range(0, len(block), 2):
+            title = block[i].strip()
+            school = block[i + 1].strip() if i + 1 < len(block) else ''
+            if title:
+                out['education'].append({'title': title, 'school': school, 'year': ''})
     return out
 
 
 def register_cv_import(app):
     @app.post('/api/cv-import')
     def cv_import():
-        stage='start'
+        stage = 'start'
         try:
-            stage='session';import app as app_module;user=app_module.current_user()
-            if not user:return jsonify(ok=False,error='LOGIN_REQUIRED'),401
-            if not app_module.is_pro_user(user):return jsonify(ok=False,error='TRIAL_EXPIRED'),402
-            stage='upload';uploaded=request.files.get('file')
-            if not uploaded or not uploaded.filename:return jsonify(ok=False,error='FILE_REQUIRED'),400
-            if not uploaded.filename.lower().endswith('.pdf'):return jsonify(ok=False,error='PDF_ONLY'),400
-            raw=uploaded.read()
-            if len(raw)>8*1024*1024:return jsonify(ok=False,error='FILE_TOO_LARGE'),413
-            if not raw.startswith(b'%PDF'):return jsonify(ok=False,error='INVALID_PDF'),400
-            stage='pdf'
+            stage = 'session'
+            import app as app_module
+            user = app_module.current_user()
+            if not user:
+                return jsonify(ok=False, error='LOGIN_REQUIRED'), 401
+            if not app_module.is_pro_user(user):
+                return jsonify(ok=False, error='TRIAL_EXPIRED'), 402
+            stage = 'upload'
+            uploaded = request.files.get('file')
+            if not uploaded or not uploaded.filename:
+                return jsonify(ok=False, error='FILE_REQUIRED'), 400
+            if not uploaded.filename.lower().endswith('.pdf'):
+                return jsonify(ok=False, error='PDF_ONLY'), 400
+            raw = uploaded.read()
+            if len(raw) > 8 * 1024 * 1024:
+                return jsonify(ok=False, error='FILE_TOO_LARGE'), 413
+            if not raw.startswith(b'%PDF'):
+                return jsonify(ok=False, error='INVALID_PDF'), 400
+            stage = 'pdf'
             try:
-                from pypdf import PdfReader
                 from io import BytesIO
-                reader=PdfReader(BytesIO(raw));pages=reader.pages[:12];text='\n'.join((p.extract_text() or '') for p in pages).strip()
-            except Exception as e:return jsonify(ok=False,error='PDF_READ_FAILED',detail=str(e)[:300],stage=stage),400
-            text=_normalise_pdf_text(text);text=re.sub(r'[ \t]+',' ',text);text=re.sub(r'\n{3,}','\n\n',text)
-            if len(text)<40:return jsonify(ok=False,error='PDF_NO_TEXT'),422
-            text=text[:30000];key=os.getenv('OPENAI_API_KEY','').strip();model=os.getenv('OPENAI_MODEL','gpt-5-mini').strip() or 'gpt-5-mini'
-            schema={'name':'','role':'','email':'','phone':'','city':'','linkedin':'','summary':'','skills':'','experience':[{'position':'','company':'','from':'','to':'','description':''}],'education':[{'title':'','school':'','year':''}],'languages':[{'language':'','level':''}]}
-            prompt=f'''Extrae la información REAL de este CV para rellenar un formulario de CV.
-NO inventes, completes ni mejores datos. Si un dato no aparece, déjalo vacío.
-Conserva nombres de empresas, puestos, fechas, estudios, idiomas, niveles, habilidades, teléfonos, emails y enlaces tal como aparecen.
-Respeta la separación entre secciones y no mezcles texto de columnas distintas.
-Devuelve SOLO JSON válido con esta estructura exacta:
-{json.dumps(schema,ensure_ascii=False)}
-
-CV EXTRAÍDO DEL PDF:
-{text}'''
-            data=None;used_model='local-fallback';ai_warning=''
+                from pypdf import PdfReader
+                reader = PdfReader(BytesIO(raw))
+                pages = reader.pages[:12]
+                text = '\n'.join((page.extract_text() or '') for page in pages).strip()
+            except Exception:
+                return jsonify(ok=False, error='PDF_READ_FAILED', stage=stage), 400
+            text = _normalise_pdf_text(text)
+            text = re.sub(r'\n{3,}', '\n\n', text)
+            if len(text) < 40:
+                return jsonify(ok=False, error='PDF_NO_TEXT'), 422
+            text = text[:30000]
+            key = os.getenv('OPENAI_API_KEY', '').strip()
+            model = os.getenv('OPENAI_MODEL', 'gpt-5-mini').strip() or 'gpt-5-mini'
+            schema = {'name':'','role':'','email':'','phone':'','city':'','linkedin':'','summary':'','skills':'','experience':[{'position':'','company':'','from':'','to':'','description':''}],'education':[{'title':'','school':'','year':''}],'languages':[{'language':'','level':''}]}
+            prompt = f'''Extrae únicamente información REAL de este CV para rellenar un formulario de CV. NO inventes, completes ni mejores datos. Si un dato no aparece, déjalo vacío. Conserva nombres de empresas, puestos, fechas, estudios, idiomas, niveles, habilidades, teléfonos, emails y enlaces tal como aparecen. Devuelve SOLO JSON válido con esta estructura exacta:\n{json.dumps(schema, ensure_ascii=False)}\n\nCV EXTRAÍDO DEL PDF:\n{text}'''
+            data = None
+            used_model = 'local-fallback'
+            warning = ''
             if key:
-                stage='ai'
-                try:data,used_model=_ai_extract(prompt,model)
+                stage = 'ai'
+                try:
+                    data, used_model = _ai_extract(prompt, model)
                 except Exception:
-                    ai_warning='La IA no está disponible; se ha usado el importador local gratuito.';data=_basic_extract(text)
+                    warning = 'La IA no está disponible; se ha usado el importador local.'
+                    data = _basic_extract(text)
             else:
-                ai_warning='La IA no está configurada; se ha usado el importador local gratuito.';data=_basic_extract(text)
-            stage='clean';clean=lambda v:str(v or '').strip();out={k:clean(data.get(k)) for k in ('name','role','email','phone','city','linkedin','summary','skills')};out['experience']=[];out['education']=[]
+                warning = 'La IA no está configurada; se ha usado el importador local.'
+                data = _basic_extract(text)
+            clean = lambda value: str(value or '').strip()
+            out = {key: clean(data.get(key)) for key in ('name','role','email','phone','city','linkedin','summary','skills')}
+            out['experience'] = []
+            out['education'] = []
             for item in data.get('experience') or []:
-                if isinstance(item,dict):
-                    x={k:clean(item.get(k)) for k in ('position','company','from','to','description')}
-                    if any(x.values()):out['experience'].append(x)
+                if isinstance(item, dict):
+                    row = {key: clean(item.get(key)) for key in ('position','company','from','to','description')}
+                    if any(row.values()):
+                        out['experience'].append(row)
             for item in data.get('education') or []:
-                if isinstance(item,dict):
-                    x={k:clean(item.get(k)) for k in ('title','school','year')}
-                    if any(x.values()):out['education'].append(x)
-            out['languages']=[]
-            source_langs=data.get('languages') or _extract_languages(text)
-            for item in source_langs:
-                if isinstance(item,dict):
-                    x={'language':clean(item.get('language')),'level':clean(item.get('level'))}
-                    if any(x.values()):out['languages'].append(x)
-            if not out['languages']:out['languages']=_extract_languages(text)
-            payload={'ok':True,'data':out,'pages':len(pages),'model':used_model}
-            if ai_warning:payload['warning']=ai_warning
+                if isinstance(item, dict):
+                    row = {key: clean(item.get(key)) for key in ('title','school','year')}
+                    if any(row.values()):
+                        out['education'].append(row)
+            out['languages'] = []
+            for item in data.get('languages') or _extract_languages(text):
+                if isinstance(item, dict):
+                    row = {'language': clean(item.get('language')), 'level': clean(item.get('level'))}
+                    if any(row.values()):
+                        out['languages'].append(row)
+            payload = {'ok': True, 'data': out, 'pages': len(pages), 'model': used_model}
+            if warning:
+                payload['warning'] = warning
             return jsonify(payload)
-        except Exception as e:return jsonify(ok=False,error='IMPORT_SERVER_ERROR',stage=stage,detail=f'{type(e).__name__}: {str(e)[:600]}'),500
+        except Exception as exc:
+            return jsonify(ok=False, error='IMPORT_SERVER_ERROR', stage=stage), 500
 
-application=__import__('app').app
+
+application = __import__('app').app
 register_cv_import(application)
 
-RECOVERY_EMAIL='smokecentral45@gmail.com'
-RECOVERY={'name':'Manuel Marco','role':'Delegado Comercial | Captación y desarrollo de negocio','email':'smokecentral45@gmail.com','phone':'600600600','city':'Sevilla','linkedin':'','summary':'Delegado Comercial con experiencia en ventas, gestión de clientes y desarrollo de negocio. Especializado en los últimos años en iluminación técnica y soluciones LED, con experiencia en gestión territorial en Andalucía Occidental, captación y fidelización de clientes, visitas comerciales, negociación, asesoramiento y gestión de proyectos. Acostumbrado a detectar oportunidades, elaborar y presentar ofertas y acompañar al cliente durante el proceso de venta con soluciones adaptadas a sus necesidades.','skills':'Negociación y cierre de ventas; Desarrollo de negocio; Captación y fidelización de clientes; Asesoramiento técnico-comercial; Gestión de proyectos de iluminación; Orientación a resultados; Comunicación y negociación; Conocimiento especializado en iluminación y soluciones LED','experience':[{'position':'Delegado Comercial','company':'Frepi Lighting','from':'','to':'','description':'Gestiono y desarrollo la cartera de clientes en Andalucía Occidental. Capto nuevos clientes y genero oportunidades de negocio en la zona asignada. Realizo visitas comerciales a distribuidores, instaladores, ingenierías, constructoras y estudios de arquitectura. Detecto necesidades y proporciono asesoramiento técnico-comercial especializado en soluciones de iluminación. Gestiono proyectos de iluminación desde la detección de necesidades hasta su ejecución. Elaboro, presento y realizo el seguimiento de ofertas y presupuestos. Negocio condiciones comerciales y desarrollo acciones de fidelización de clientes. Realizo el seguimiento de objetivos de venta, el análisis de mercado y el desarrollo estratégico de la zona.'}],'education':[{'title':'FP Superior Comercio Internacional','school':'FESAC','year':''}],'languages':[],'template':'classic','photo':''}
-
-_original_cv=application.view_functions.get('cv_data_api')
-if _original_cv:
-    def _cv_with_recovery(*args,**kwargs):
-        import app as app_module;user=app_module.current_user()
-        if user and str(user.get('email') or '').lower()==RECOVERY_EMAIL and request.method=='GET':
-            response=_original_cv(*args,**kwargs)
-            try:payload=response.get_json(silent=True) or {}
-            except Exception:payload={}
-            data=payload.get('data') or {}
-            if not data or not str(data.get('name') or '').strip():
-                app_module.db_execute('''INSERT INTO cv_data(user_id,data,updated_at) VALUES(:uid,:data,CURRENT_TIMESTAMP) ON CONFLICT(user_id) DO UPDATE SET data=excluded.data,updated_at=CURRENT_TIMESTAMP''',{'uid':user['id'],'data':json.dumps(RECOVERY,ensure_ascii=False)})
-                return jsonify(ok=True,data=RECOVERY)
-        return _original_cv(*args,**kwargs)
-    application.view_functions['cv_data_api']=_cv_with_recovery
-
-_original_home=application.view_functions.get('home')
-if _original_home:
-    def _home_with_cv_import(*args,**kwargs):
-        response=_original_home(*args,**kwargs);body=response.get_data(as_text=True)
-        if '/cvimport.js' not in body:body=body.replace('</body>','<script src="/cvimport.js?v=1"></script></body>')
-        if '/import_ui.js' not in body:body=body.replace('</body>','<script src="/import_ui.js?v=1"></script></body>')
-        response.set_data(body);response.headers.pop('Content-Length',None);return response
-    application.view_functions['home']=_home_with_cv_import
 
 @application.get('/cvimport.js')
 def cvimport_js():
     from flask import send_from_directory
-    return send_from_directory('.','cvimport.js',mimetype='application/javascript')
+    return send_from_directory('.', 'cvimport.js', mimetype='application/javascript')
+
 
 @application.get('/import_ui.js')
 def import_ui_js():
     from flask import send_from_directory
-    return send_from_directory('.','import_ui.js',mimetype='application/javascript')
+    return send_from_directory('.', 'import_ui.js', mimetype='application/javascript')
