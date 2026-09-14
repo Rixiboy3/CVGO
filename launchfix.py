@@ -53,10 +53,27 @@ _BRAND_JS = r'''<script id="cvprofitLaunchFix">
       if(value)date.textContent=value;
     });
   }
+  function hidePublicAuthForLoggedIn(){
+    fetch('/api/me',{cache:'no-store',credentials:'same-origin'}).then(function(r){return r.json()}).then(function(u){
+      if(!u || !u.logged_in)return;
+      const auth=document.getElementById('auth');
+      if(auth){
+        auth.classList.add('hidden');
+        auth.style.setProperty('display','none','important');
+        const marketing=auth.querySelector('.cvgo-marketing');
+        if(marketing)marketing.remove();
+        const card=auth.querySelector('.card');
+        if(card)card.remove();
+      }
+      const main=document.getElementById('main');
+      if(main){main.classList.remove('hidden');main.style.setProperty('display','block','important');}
+    }).catch(function(){});
+  }
   function fix(){
     walk(document.body);
     if(document.title)document.title=textFix(document.title);
     syncExperienceDates();
+    hidePublicAuthForLoggedIn();
   }
   if(document.readyState==='loading')document.addEventListener('DOMContentLoaded',fix,{once:true});
   else fix();
@@ -65,7 +82,7 @@ _BRAND_JS = r'''<script id="cvprofitLaunchFix">
   const observer=new MutationObserver(function(mutations){
     let relevant=false;
     for(const m of mutations){if(m.addedNodes && m.addedNodes.length){relevant=true;break;}}
-    if(relevant)fix();
+    if(relevant)hidePublicAuthForLoggedIn();
   });
   observer.observe(document.documentElement,{childList:true,subtree:true});
 })();
@@ -76,14 +93,11 @@ def cvprofit_launch_hardening(response):
     try:
         if 'text/html' in (response.content_type or ''):
             html=response.get_data(as_text=True)
-            # Fix the actual HTML payload as well as the DOM. This catches
-            # content that later scripts may inject or overwrite.
             html=html.replace('CVGO','CVProfit').replace('CVgo','CVProfit')
             html=html.replace('3 DÍAS','7 DÍAS').replace('3 días','7 días')
             if 'cvprofitLaunchFix' not in html and '</body>' in html:
                 html=html.replace('</body>', _BRAND_JS+'</body>')
             response.set_data(html)
     except Exception:
-        # Never make the application fail because the presentation hardening layer fails.
         pass
     return response
