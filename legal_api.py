@@ -39,5 +39,6 @@ def register_legal(app):
             return Response(html, mimetype='text/html')
         app.view_functions['home'] = home_with_footer
 
-# Loaded last so recovery routes and UI are available after all existing home wrappers.
+# Loaded after existing wrappers so recovery and commercial UI are available on the main page.
 import passwordreset
+import commercial_ui
