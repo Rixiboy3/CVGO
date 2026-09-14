@@ -76,9 +76,13 @@ def cvprofit_launch_hardening(response):
     try:
         if 'text/html' in (response.content_type or ''):
             html=response.get_data(as_text=True)
+            # Fix the actual HTML payload as well as the DOM. This catches
+            # content that later scripts may inject or overwrite.
+            html=html.replace('CVGO','CVProfit').replace('CVgo','CVProfit')
+            html=html.replace('3 DÍAS','7 DÍAS').replace('3 días','7 días')
             if 'cvprofitLaunchFix' not in html and '</body>' in html:
                 html=html.replace('</body>', _BRAND_JS+'</body>')
-                response.set_data(html)
+            response.set_data(html)
     except Exception:
         # Never make the application fail because the presentation hardening layer fails.
         pass
