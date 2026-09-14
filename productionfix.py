@@ -52,6 +52,40 @@ for _endpoint_name in tuple(_LIMITS):
         return limited
     app.view_functions[_endpoint_name] = _make_limited(_endpoint, _endpoint_name)
 
+# Per-user AI budget in addition to the IP limit. This protects OpenAI spend
+# if a single account is abused from multiple addresses.
+_AI_USER_BUCKETS = defaultdict(deque)
+_AI_USER_LIMIT = 20
+_AI_USER_WINDOW = 3600
+
+def _ai_user_allowed():
+    user = app_module.current_user()
+    if not user:
+        return True, 0
+    key = str(user["id"])
+    now = time.monotonic()
+    q = _AI_USER_BUCKETS[key]
+    while q and now - q[0] > _AI_USER_WINDOW:
+        q.popleft()
+    if len(q) >= _AI_USER_LIMIT:
+        return False, max(1, int(_AI_USER_WINDOW - (now - q[0])))
+    q.append(now)
+    return True, 0
+
+_original_ai = app.view_functions.get("ai_generate")
+if _original_ai and not getattr(_original_ai, "_cvprofit_user_quota", False):
+    @wraps(_original_ai)
+    def _ai_with_user_quota(*args, **kwargs):
+        allowed, retry_after = _ai_user_allowed()
+        if not allowed:
+            response = jsonify(ok=False, error="AI_QUOTA_EXCEEDED", message="Has alcanzado el límite temporal de análisis con IA. Vuelve a intentarlo más tarde.")
+            response.status_code = 429
+            response.headers["Retry-After"] = str(retry_after)
+            return response
+        return _original_ai(*args, **kwargs)
+    _ai_with_user_quota._cvprofit_user_quota = True
+    app.view_functions["ai_generate"] = _ai_with_user_quota
+
 # /api/health is useful internally but should not expose user counts,
 # provider configuration, or database details to the public internet.
 if "health" in app.view_functions:
