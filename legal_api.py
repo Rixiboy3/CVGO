@@ -2,7 +2,6 @@ from flask import Response
 
 
 def register_legal(app):
-    # Idempotent: some modules may already have registered these routes.
     if 'legal_notice' in app.view_functions:
         return
 
@@ -11,11 +10,11 @@ def register_legal(app):
 
     @app.get('/legal/aviso-legal')
     def legal_notice():
-        return page('Aviso legal','<h1>Aviso legal</h1><div class="notice"><strong>Información pendiente de completar antes del lanzamiento comercial:</strong> deben incorporarse los datos identificativos definitivos del titular antes de la venta pública.</div><h2>Identificación del titular</h2><p><strong>Nombre o denominación:</strong> [PENDIENTE]</p><p><strong>NIF/CIF:</strong> [PENDIENTE]</p><p><strong>Domicilio:</strong> [PENDIENTE]</p><p><strong>Correo electrónico:</strong> [PENDIENTE]</p><h2>Actividad</h2><p>CVProfit ofrece herramientas digitales para crear, editar y optimizar currículums, cartas de presentación y preparación de entrevistas.</p>')
+        return page('Aviso legal','<h1>Aviso legal</h1><div class="notice"><strong>Antes del lanzamiento comercial deben completarse los datos identificativos definitivos del titular.</strong></div><h2>Identificación del titular</h2><p><strong>Nombre o denominación:</strong> [PENDIENTE]</p><p><strong>NIF/CIF:</strong> [PENDIENTE]</p><p><strong>Domicilio:</strong> [PENDIENTE]</p><p><strong>Correo electrónico:</strong> [PENDIENTE]</p><h2>Actividad</h2><p>CVProfit ofrece herramientas digitales para crear, editar y optimizar currículums, cartas de presentación y preparación de entrevistas.</p>')
 
     @app.get('/legal/privacidad')
     def privacy():
-        return page('Política de privacidad','<h1>Política de privacidad</h1><div class="notice"><strong>Versión de trabajo:</strong> antes del lanzamiento comercial deberán completarse los datos definitivos del responsable y revisarse jurídicamente los proveedores.</div><h2>Responsable</h2><p><strong>Responsable:</strong> [PENDIENTE]</p><p><strong>Contacto:</strong> [PENDIENTE]</p><h2>Datos y finalidades</h2><p>CVProfit puede tratar datos de cuenta y los datos que el usuario introduzca en su currículum, experiencia, formación y candidatura para prestar el servicio, gestionar PRO y prevenir abusos de la prueba.</p><h2>Derechos</h2><p>Las personas usuarias podrán ejercer los derechos reconocidos por la normativa aplicable mediante el canal de contacto que se indique en la versión definitiva.</p>')
+        return page('Política de privacidad','<h1>Política de privacidad</h1><div class="notice"><strong>Versión pendiente de completar:</strong> antes de la venta pública deberán incorporarse los datos definitivos del responsable y verificarse jurídicamente los proveedores y transferencias aplicables.</div><h2>Responsable</h2><p><strong>Responsable:</strong> [PENDIENTE]</p><p><strong>Contacto:</strong> [PENDIENTE]</p><h2>Datos y finalidades</h2><p>CVProfit puede tratar datos de cuenta y los datos que el usuario introduzca en su currículum, experiencia, formación y candidatura para prestar el servicio, gestionar PRO, prestar las funciones de inteligencia artificial y prevenir abusos de la prueba.</p><h2>Proveedores</h2><p>La prestación puede implicar proveedores tecnológicos de alojamiento, pagos, correo electrónico y servicios de inteligencia artificial. La versión definitiva identificará los proveedores y las condiciones aplicables.</p><h2>Derechos</h2><p>Las personas usuarias podrán ejercer los derechos reconocidos por la normativa aplicable mediante el canal de contacto que se indique en la versión definitiva.</p>')
 
     @app.get('/legal/cookies')
     def cookies():
@@ -23,7 +22,7 @@ def register_legal(app):
 
     @app.get('/legal/condiciones')
     def terms():
-        return page('Condiciones de uso y contratación','<h1>Condiciones de uso y contratación</h1><h2>Servicio</h2><p>CVProfit ofrece herramientas digitales para crear CV, adaptar candidaturas, generar cartas y practicar entrevistas.</p><h2>Prueba gratuita</h2><p>Las nuevas cuentas disponen de 3 días de prueba. Finalizado ese periodo, las funciones restringidas requieren PRO.</p><h2>PRO</h2><p>La suscripción se ofrece mediante planes mensuales y anuales según los precios publicados y se renueva automáticamente salvo cancelación.</p><h2>IA</h2><p>Las funciones de inteligencia artificial son herramientas de asistencia y el usuario debe revisar el contenido generado.</p>')
+        return page('Condiciones de uso y contratación','<h1>Condiciones de uso y contratación</h1><h2>Servicio</h2><p>CVProfit ofrece herramientas digitales para crear CV, adaptar candidaturas, generar cartas y practicar entrevistas.</p><h2>Prueba gratuita</h2><p>Las nuevas cuentas disponen de <strong>7 días de prueba gratuita</strong>, con acceso a las funciones disponibles durante el periodo de prueba. No se realiza ningún cargo durante la prueba.</p><h2>PRO</h2><p>Finalizada la prueba, las funciones restringidas requieren PRO. La suscripción se ofrece mediante planes mensuales y anuales según los precios publicados y se renueva automáticamente salvo cancelación.</p><h2>Cancelación</h2><p>El usuario puede cancelar la renovación de su suscripción. Cuando corresponda, el acceso contratado se mantiene hasta el final del periodo ya pagado.</p><h2>IA</h2><p>Las funciones de inteligencia artificial son herramientas de asistencia. El usuario debe revisar el contenido generado y es responsable de la información que decida incorporar a su candidatura.</p>')
 
     @app.get('/legal/reembolsos')
     def refunds():
@@ -34,11 +33,10 @@ def register_legal(app):
         def home_with_footer():
             response = original_home()
             html = response.get_data(as_text=True)
-            footer = '<footer id="cvgoLegalFooter" style="width:100%;margin-top:auto;flex-shrink:0;text-align:center;padding:28px 20px 35px;color:#667085;font-size:12px;box-sizing:border-box"><span style="display:block;margin-bottom:10px;font-weight:800;color:#344054">CVProfit</span><a href="/legal/aviso-legal" style="margin:0 7px;color:#667085">Aviso legal</a><a href="/legal/privacidad" style="margin:0 7px;color:#667085">Privacidad</a><a href="/legal/cookies" style="margin:0 7px;color:#667085">Cookies</a><a href="/legal/condiciones" style="margin:0 7px;color:#667085">Condiciones</a><a href="/legal/reembolsos" style="margin:0 7px;color:#667085">Cancelación y reembolsos</a></footer>'
+            footer = '<footer id="cvprofitLegalFooter" style="width:100%;margin-top:auto;flex-shrink:0;text-align:center;padding:28px 20px 35px;color:#667085;font-size:12px;box-sizing:border-box"><span style="display:block;margin-bottom:10px;font-weight:800;color:#344054">CVProfit</span><a href="/legal/aviso-legal" style="margin:0 7px;color:#667085">Aviso legal</a><a href="/legal/privacidad" style="margin:0 7px;color:#667085">Privacidad</a><a href="/legal/cookies" style="margin:0 7px;color:#667085">Cookies</a><a href="/legal/condiciones" style="margin:0 7px;color:#667085">Condiciones</a><a href="/legal/reembolsos" style="margin:0 7px;color:#667085">Cancelación y reembolsos</a></footer>'
             html = html.replace('</body>', footer + '</body>')
             return Response(html, mimetype='text/html')
         app.view_functions['home'] = home_with_footer
 
-# Loaded after existing wrappers so recovery and commercial UI are available on the main page.
 import passwordreset
 import commercial_ui
