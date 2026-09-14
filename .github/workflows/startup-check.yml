@@ -17,7 +17,7 @@ jobs:
         with:
           python-version: '3.13'
       - name: Install dependencies
-        run: python -m pip install --upgrade pip && pip install -r requirements.txt
+        run: python -m pip install --upgrade pip && pip install -r requirements.txt pytest
       - name: Compile Python files
         run: python -m compileall -q .
       - name: Import Flask application
@@ -26,3 +26,9 @@ jobs:
           CVGO_SESSION_SECRET: ci-test-secret
           COOKIE_SECURE: '0'
         run: python -c "import app; print('CVProfit startup OK:', len(app.app.url_map._rules), 'routes')"
+      - name: Production smoke tests
+        env:
+          CVGO_DB: /tmp/cvprofit-ci-smoke.db
+          CVGO_SESSION_SECRET: ci-test-secret
+          COOKIE_SECURE: '0'
+        run: pytest -q test_production.py
