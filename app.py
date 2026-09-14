@@ -222,3 +222,5 @@ def health():
 init_db()
 import interview_api
 import billing_api
+import legal_api
+legal_api.register_legal(app)
