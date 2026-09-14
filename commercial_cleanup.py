@@ -1,8 +1,8 @@
 """Final commercial consistency layer for CVProfit."""
-from flask import request
+import json
+import urllib.request
 import app as app_module
 
-# Keep the business rule explicit at runtime while legacy modules are retired.
 app_module.TRIAL_DAYS = 7
 
 
@@ -34,17 +34,27 @@ def _fix_html(response):
 
 app_module.app.after_request(_fix_html)
 
-# Email verification is generated server-side, so the public trial promise must
-# also be correct in the message sent to new users.
+# The verification module sends its email through urllib. Rewrite only the
+# generated message payload so old trial wording cannot reach a new user.
 try:
     import emailverify
     original_send = getattr(emailverify, '_send_email', None)
     if original_send and not getattr(original_send, '_cvprofit_cleaned', False):
-        def send_email_cleaned(email, token):
-            # The verification module owns delivery; this wrapper only ensures
-            # its generated trial wording follows the current commercial rule.
-            return original_send(email, token)
-        send_email_cleaned._cvprofit_cleaned = True
-        emailverify._send_email = send_email_cleaned
+        original_urlopen = emailverify.urllib.request.urlopen
+
+        def urlopen_cleaned(req, *args, **kwargs):
+            if isinstance(req, urllib.request.Request) and req.data:
+                try:
+                    payload = json.loads(req.data.decode('utf-8'))
+                    for key in ('htmlContent', 'textContent'):
+                        if isinstance(payload.get(key), str):
+                            payload[key] = payload[key].replace('3 días', '7 días').replace('3 DÍAS', '7 DÍAS')
+                    req = urllib.request.Request(req.full_url, data=json.dumps(payload, ensure_ascii=False).encode('utf-8'), method=req.method, headers=dict(req.header_items()))
+                except Exception:
+                    pass
+            return original_urlopen(req, *args, **kwargs)
+
+        emailverify.urllib.request.urlopen = urlopen_cleaned
+        original_send._cvprofit_cleaned = True
 except Exception:
     pass
