@@ -124,19 +124,31 @@ def register_password_reset(app):
         generic = {'ok': True, 'message': 'Si existe una cuenta con ese correo, recibirás un enlace para restablecer la contraseña.'}
         if not email or '@' not in email:
             return jsonify(generic)
-        user = _app().db_fetchone('SELECT * FROM users WHERE email=:email', {'email': email})
+        app_module = _app()
+        user = app_module.db_fetchone('SELECT * FROM users WHERE email=:email', {'email': email})
         if not user:
             return jsonify(generic)
+        token = None
         try:
             token = _create_token(user['id'])
             _send_email(email, token)
         except RuntimeError as exc:
+            if token:
+                try:
+                    app_module.db_execute('DELETE FROM password_reset_tokens WHERE token_hash=:hash', {'hash': _hash_token(token)})
+                except Exception:
+                    pass
             if 'RESET_RATE_LIMIT' in str(exc):
                 return jsonify(generic)
             if 'EMAIL_NOT_CONFIGURED' in str(exc):
                 return jsonify(ok=False, error='EMAIL_NOT_CONFIGURED', message='La recuperación por correo todavía no está configurada.'), 503
             return jsonify(ok=False, error='RESET_EMAIL_FAILED', message='No hemos podido enviar el correo ahora mismo. Inténtalo de nuevo más tarde.'), 503
         except Exception:
+            if token:
+                try:
+                    app_module.db_execute('DELETE FROM password_reset_tokens WHERE token_hash=:hash', {'hash': _hash_token(token)})
+                except Exception:
+                    pass
             return jsonify(ok=False, error='RESET_EMAIL_FAILED', message='No hemos podido enviar el correo ahora mismo. Inténtalo de nuevo más tarde.'), 503
         return jsonify(generic)
 
