@@ -86,7 +86,7 @@ def _inject_runtime_hardening(html):
       });
       if(main){
         main.classList.remove('hidden');
-        main.style.removeProperty('display');
+        main.style.setProperty('display','block','important');
         main.removeAttribute('aria-hidden');
       }
     }).catch(function(){});
