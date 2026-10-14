@@ -67,16 +67,26 @@ def _inject_runtime_hardening(html):
   function forceAuthenticatedView(){
     fetch('/api/me',{cache:'no-store',credentials:'same-origin'}).then(function(r){return r.ok?r.json():null}).then(function(u){
       if(!u||!u.logged_in)return;
+      document.documentElement.classList.add('cvprofit-authenticated');
+      document.body.classList.add('cvprofit-authenticated');
       var auth=document.getElementById('auth');
       var main=document.getElementById('main');
-      if(auth){
-        auth.classList.add('hidden');
-        auth.style.setProperty('display','none','important');
-        auth.setAttribute('aria-hidden','true');
-      }
+      // Authenticated users must never see the public landing/trial pitch.
+      [auth].concat(Array.from(document.querySelectorAll('.cvgo-marketing,#cvgoHeroCta,.cvgo-trial,.cvgo-price-note,[data-public-landing],.public-landing,.landing-hero,.pricing-hero'))).forEach(function(el){
+        if(!el)return;
+        el.classList.add('hidden');
+        el.style.setProperty('display','none','important');
+        el.setAttribute('aria-hidden','true');
+      });
+      document.querySelectorAll('body *').forEach(function(el){
+        if(el.children.length===0 && /^(Empezar gratis|Empezar gratis 3 días|Empezar gratis 7 días|Empieza gratis|Prueba gratis)$/i.test((el.textContent||'').trim())){
+          el.style.setProperty('display','none','important');
+          el.setAttribute('aria-hidden','true');
+        }
+      });
       if(main){
         main.classList.remove('hidden');
-        main.style.setProperty('display','block','important');
+        main.style.removeProperty('display');
         main.removeAttribute('aria-hidden');
       }
     }).catch(function(){});
