@@ -104,3 +104,45 @@ body.cvgo-dashboard .previewbox:after{content:"Tu CV se actualiza en tiempo real
  body.cvgo-dashboard.cvgo-mobile-work .cvjob .line{display:block!important}
  body.cvgo-dashboard.cvgo-mobile-work .cvjob .date{display:block!important;margin-top:2px!important}
 }
+
+
+/* CVProfit editor layout: keep the form and live preview side by side on desktop. */
+@media (min-width: 951px) {
+  body.cvgo-dashboard .app {
+    display: grid !important;
+    grid-template-columns: minmax(390px, 0.95fr) minmax(460px, 1.05fr) !important;
+    align-items: start !important;
+    column-gap: 22px !important;
+    row-gap: 22px !important;
+  }
+  body.cvgo-dashboard .dash-top,
+  body.cvgo-dashboard .dash-quick,
+  body.cvgo-dashboard .dash-tip {
+    grid-column: 1 / -1 !important;
+  }
+  body.cvgo-dashboard .panel {
+    grid-column: 1 !important;
+    grid-row: auto !important;
+    max-height: calc(100vh - 112px) !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    min-width: 0 !important;
+  }
+  body.cvgo-dashboard .previewbox {
+    grid-column: 2 !important;
+    grid-row: auto !important;
+    position: sticky !important;
+    top: 92px !important;
+    height: calc(100vh - 108px) !important;
+    max-height: calc(100vh - 108px) !important;
+    overflow-y: auto !important;
+    overscroll-behavior: contain;
+    min-width: 0 !important;
+    margin-top: 0 !important;
+  }
+  body.cvgo-dashboard #preview {
+    width: 100% !important;
+    min-width: 0 !important;
+    overflow: visible !important;
+  }
+}
